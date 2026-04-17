@@ -4,20 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
 <title>ÉlecStudio AR · NF C 15-100</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&family=Nunito:wght@500;600;700&display=swap" rel="stylesheet">
-
 <!--
-  ╔══════════════════════════════════════════════════════════╗
-  ║  A-Frame 1.4 + AR.js — chargés depuis CDN au runtime    ║
-  ║  Ces scripts NE fonctionnent PAS en local (file://)      ║
-  ║  Ils nécessitent HTTPS → GitHub Pages ✓                  ║
-  ╚══════════════════════════════════════════════════════════╝
+  A-Frame + AR.js sont chargés UNIQUEMENT quand on clique sur l'onglet RA
+  → pas de page blanche au démarrage
 -->
-<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-
 <style>
 :root{
   --bg:#eef1f6;--sur:#fff;--bor:#dde2ed;--dk:#1b2236;--mid:#6b7898;
@@ -29,7 +21,7 @@ html,body{height:100%;width:100%;font-family:'Nunito',sans-serif;background:var(
 .app{display:flex;flex-direction:column;height:100%}
 
 /* TOPBAR */
-.topbar{display:flex;align-items:center;gap:5px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:var(--dk);flex-shrink:0;z-index:9999}
+.topbar{display:flex;align-items:center;gap:5px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:var(--dk);flex-shrink:0}
 .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:.9rem;color:#fff}
 .logo span{color:#60a5fa}
 .tsp{flex:1}
@@ -65,6 +57,7 @@ html,body{height:100%;width:100%;font-family:'Nunito',sans-serif;background:var(
 .sf input:focus,.sf select:focus{border-color:var(--ac)}
 .sh-hint{font-size:.68rem;color:var(--acd);line-height:1.55;padding:6px 8px;background:var(--acl);border-radius:8px;margin-bottom:8px}
 .fab{position:absolute;bottom:14px;right:14px;width:46px;height:46px;border-radius:50%;background:var(--ac);color:#fff;border:none;font-size:1.2rem;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4);display:flex;align-items:center;justify-content:center;z-index:15}
+.fab:active{background:var(--acd)}
 
 /* ══ PLACER ══ */
 .place-main{flex:1;position:relative;overflow:hidden;background:#cdd5e0;touch-action:none}
@@ -97,69 +90,42 @@ html,body{height:100%;width:100%;font-family:'Nunito',sans-serif;background:var(
 .zb{width:31px;height:31px;border-radius:7px;background:rgba(255,255,255,.9);border:1px solid var(--bor);display:flex;align-items:center;justify-content:center;font-size:.85rem;cursor:pointer;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .zlbl{font-size:.57rem;font-family:'JetBrains Mono',monospace;text-align:center;color:var(--mid);padding:2px 4px;background:rgba(255,255,255,.85);border-radius:5px}
 
-/* ══ AR SCREEN ══ */
-#scrAR{background:#000;flex-direction:column;position:relative}
-
-/* A-Frame occupe tout l'écran */
-#arScene{position:absolute;inset:0;z-index:1}
-#arScene a-scene{width:100%!important;height:100%!important}
-
-/* HUD par-dessus A-Frame */
-.ar-hud{position:absolute;inset:0;z-index:9999;pointer-events:none}
-.ar-top{position:absolute;top:0;left:0;right:0;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:linear-gradient(to bottom,rgba(0,0,0,.72),transparent);display:flex;align-items:center;gap:6px;pointer-events:all}
+/* ══ AR — iframe isolée ══ */
+#scrAR{background:#111;flex-direction:column}
+/* L'iframe contient A-Frame, isolée du DOM principal */
+#arIframe{position:absolute;inset:0;width:100%;height:100%;border:none;z-index:1}
+/* HUD par-dessus l'iframe */
+.ar-hud{position:absolute;inset:0;z-index:10;pointer-events:none}
+.ar-top{position:absolute;top:0;left:0;right:0;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);display:flex;align-items:center;gap:6px;pointer-events:all}
 .alo{font-family:'Syne',sans-serif;font-weight:800;font-size:.82rem;color:#fff}
 .alo span{color:#60a5fa} .asp{flex:1}
 .ahb{padding:4px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.45);backdrop-filter:blur(5px);color:rgba(255,255,255,.85);font-family:'Nunito',sans-serif;font-size:.67rem;font-weight:700;cursor:pointer;pointer-events:all}
 .ahb.on{background:rgba(37,99,235,.5);border-color:rgba(96,165,250,.6)}
-
-/* Status */
 .ar-st{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:6px 16px;font-size:.7rem;display:flex;align-items:center;gap:7px;white-space:nowrap;pointer-events:none}
 .sdt{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .sdt.scan{background:#fbbf24;animation:pd 1.4s ease-in-out infinite}
 .sdt.rdy{background:#34d399;animation:pd 1.4s ease-in-out infinite}
 .sdt.go{background:#60a5fa;animation:none}
 @keyframes pd{0%,100%{opacity:.4}50%{opacity:1}}
-
-/* Zone */
-.zi{position:absolute;top:92px;left:10px;background:rgba(0,0,0,.55);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;min-width:105px;pointer-events:none}
-.zit{font-size:.54rem;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px}
-.zpill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:14px;font-size:.66rem;font-weight:700}
-.zdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-
-/* Legend */
 .ar-leg{position:absolute;top:92px;right:10px;background:rgba(0,0,0,.55);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;font-size:.63rem;pointer-events:none}
 .lr{display:flex;align-items:center;gap:6px;padding:2px 0}
 .ld{width:9px;height:9px;border-radius:2px;flex-shrink:0}
-
-/* Volume panel */
 .vp{position:absolute;bottom:78px;right:10px;background:rgba(0,0,0,.55);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;font-size:.62rem;min-width:148px;pointer-events:none}
 .vt{font-family:'JetBrains Mono',monospace;font-size:.54rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px}
 .vr{display:flex;justify-content:space-between;gap:7px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .vr:last-child{border:none} .vk{color:rgba(255,255,255,.42);font-size:.59rem} .vv{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.59rem}
-
-/* Elem tooltip */
-.etip{position:absolute;bottom:78px;left:10px;background:rgba(5,8,20,.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:10px 13px;min-width:175px;max-width:220px;display:none;pointer-events:none}
-.etip.show{display:block}
-.etn{font-family:'Syne',sans-serif;font-size:.82rem;font-weight:800;margin-bottom:5px}
-.etr{display:flex;justify-content:space-between;font-size:.66rem;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.07)}
-.etr:last-child{border:none} .etk{color:rgba(255,255,255,.42)} .etv{font-family:'JetBrains Mono',monospace;font-weight:600}
-.etst{margin-top:5px;padding:4px 8px;border-radius:6px;font-size:.65rem;font-weight:700}
-.etst.ok{background:rgba(5,150,105,.25);color:#34d399} .etst.wn{background:rgba(217,119,6,.25);color:#fbbf24} .etst.er{background:rgba(220,38,38,.25);color:#f87171}
-
-/* Marker guide overlay */
-.ar-guide{position:absolute;inset:0;background:rgba(0,0,0,.88);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;pointer-events:all}
-.ar-guide.hide{display:none}
-.ag-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:#fff;text-align:center}
-.ag-logo span{color:#60a5fa}
-.ag-marker{background:#fff;border-radius:10px;padding:10px;display:flex;align-items:center;justify-content:center}
-.ag-txt{font-size:.75rem;color:rgba(255,255,255,.6);text-align:center;line-height:1.7;max-width:260px}
-.ag-txt b{color:#fff}
-.ag-btn{padding:12px 28px;border-radius:12px;border:none;background:var(--ac);color:#fff;font-family:'Nunito',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;box-shadow:0 4px 16px rgba(37,99,235,.4)}
-.ag-btn2{padding:8px 18px;border-radius:9px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);font-family:'Nunito',sans-serif;font-weight:600;font-size:.75rem;cursor:pointer}
-
-/* Bottom bar AR */
-.ar-bot{position:absolute;bottom:0;left:0;right:0;padding:7px 10px;padding-bottom:calc(7px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,rgba(0,0,0,.72),transparent);display:flex;gap:6px;pointer-events:all}
+.ar-bot{position:absolute;bottom:0;left:0;right:0;padding:7px 10px;padding-bottom:calc(7px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,rgba(0,0,0,.75),transparent);display:flex;gap:6px;pointer-events:all}
 .ar-bot .ahb{flex:1;text-align:center;padding:9px 4px}
+/* Guide marker */
+.ar-guide{position:absolute;inset:0;background:rgba(0,0,0,.9);z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;pointer-events:all}
+.ar-guide.hide{display:none}
+.ag-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;color:#fff;text-align:center}
+.ag-logo span{color:#60a5fa}
+.ag-mk{background:#fff;border-radius:10px;padding:10px}
+.ag-txt{font-size:.74rem;color:rgba(255,255,255,.6);text-align:center;line-height:1.7;max-width:260px}
+.ag-txt b{color:#fff}
+.ag-btn{padding:11px 26px;border-radius:11px;border:none;background:var(--ac);color:#fff;font-family:'Nunito',sans-serif;font-weight:700;font-size:.84rem;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4)}
+.ag-btn2{padding:7px 16px;border-radius:9px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:rgba(255,255,255,.65);font-family:'Nunito',sans-serif;font-weight:600;font-size:.73rem;cursor:pointer}
 
 /* ══ NORMES ══ */
 .nwrap{flex:1;overflow-y:auto;padding:12px;background:var(--bg);-webkit-overflow-scrolling:touch}
@@ -182,13 +148,15 @@ html,body{height:100%;width:100%;font-family:'Nunito',sans-serif;background:var(
 <body>
 <div class="app">
 
+<!-- TOPBAR -->
 <div class="topbar">
-  <div class="logo">Élec<span>Studio</span> <span style="font-size:.58rem;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.35);font-weight:400;letter-spacing:.5px">v1.4</span></div>
+  <div class="logo">Élec<span>Studio</span> <span style="font-size:.58rem;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.35);font-weight:400;letter-spacing:.5px">v1.5</span></div>
   <div class="tsp"></div>
   <button class="tb pri" onclick="runVal();setTab('norm')">✓ Valider</button>
   <button class="tb" onclick="newProj()">✦ Nouveau</button>
 </div>
 
+<!-- CONTENT -->
 <div class="content">
 
 <!-- TRACER -->
@@ -267,57 +235,46 @@ html,body{height:100%;width:100%;font-family:'Nunito',sans-serif;background:var(
   </div>
 </div>
 
-<!-- ══ AR ══ -->
+<!-- ══ AR — iframe isolée ══ -->
 <div class="screen off" id="scrAR">
-  <div id="arScene"></div>
+  <!-- iframe injectée dynamiquement pour isoler A-Frame du DOM principal -->
+  <div id="arIframeWrap" style="position:absolute;inset:0;z-index:1"></div>
   <div class="ar-hud">
-
     <div class="ar-top">
-      <div class="alo">Élec<span>Studio</span> <span style="font-size:.52rem;opacity:.32;font-family:'JetBrains Mono',monospace">RA</span></div>
+      <div class="alo">Élec<span>Studio</span> <span style="font-size:.52rem;opacity:.32;font-family:'JetBrains Mono',monospace">RA v1.5</span></div>
       <div class="asp"></div>
-      <button class="ahb on" id="bZ" onclick="toggleARVis('zones')">🌡 Zones</button>
-      <button class="ahb on" id="bE" onclick="toggleARVis('elec')">⚡ Élém.</button>
+      <button class="ahb on" id="bZ" onclick="sendAR('zones')">🌡 Zones</button>
+      <button class="ahb on" id="bE" onclick="sendAR('elec')">⚡ Élém.</button>
       <button class="ahb" onclick="setTab('place')">✕</button>
     </div>
-
-    <div class="ar-st"><span class="sdt scan" id="stDot"></span><span id="stTxt">Chargement…</span></div>
-
-    <div class="zi">
-      <div class="zit">Zone actuelle</div>
-      <div id="camZI"><div class="zpill"><div class="zdot" style="background:#94a3b8"></div>—</div></div>
-    </div>
-
+    <div class="ar-st"><span class="sdt scan" id="stDot"></span><span id="stTxt">Chargement AR…</span></div>
     <div class="ar-leg">
       <div class="lr"><div class="ld" style="background:rgba(220,38,38,.8)"></div>Zone 0</div>
       <div class="lr"><div class="ld" style="background:rgba(217,119,6,.75)"></div>Zone 1 ≤60cm H≤2,25m</div>
       <div class="lr"><div class="ld" style="background:rgba(37,99,235,.7)"></div>Zone 2 ≤120cm H≤2,25m</div>
       <div class="lr"><div class="ld" style="background:rgba(148,163,184,.5)"></div>Hors zone</div>
     </div>
-
-    <div class="etip" id="etip"></div>
     <div class="vp" id="volP"></div>
-
     <div class="ar-bot">
       <button class="ahb" onclick="setTab('place')">← Plan</button>
-      <button class="ahb" onclick="rotAR(15)">↻ Rotation</button>
-      <button class="ahb" onclick="scaleAR(.1)">+ Grande</button>
-      <button class="ahb" onclick="scaleAR(-.1)">− Petite</button>
+      <button class="ahb" onclick="sendAR('rot')">↻ Rotation</button>
+      <button class="ahb" onclick="sendAR('bigger')">+ Grande</button>
+      <button class="ahb" onclick="sendAR('smaller')">− Petite</button>
       <button class="ahb" onclick="printMarker()">🖨️ Marqueur</button>
     </div>
-
-    <!-- Guide marker overlay -->
+    <!-- Guide -->
     <div class="ar-guide" id="arGuide">
       <div class="ag-logo">Élec<span>Studio</span><br><span style="font-size:.85rem;color:rgba(255,255,255,.4);font-weight:400">Réalité Augmentée</span></div>
-      <div class="ag-marker"><canvas id="markerCv" width="140" height="140"></canvas></div>
+      <div class="ag-mk"><canvas id="markerCv" width="130" height="130"></canvas></div>
       <div class="ag-txt">
-        <b>1.</b> Imprimez ce marqueur et posez-le <b>à plat au sol</b><br>
-        <b>2.</b> Pointez la caméra depuis <b>50–80 cm</b><br>
-        <b>3.</b> La scène 3D s'ancre et reste fixée quand vous bougez
+        <b>1.</b> Imprimez ce marqueur<br>
+        <b>2.</b> Posez-le à plat au sol<br>
+        <b>3.</b> Pointez depuis 50–80 cm<br>
+        La scène se fixe et reste ancrée
       </div>
       <button class="ag-btn" onclick="printMarker()">🖨️ Imprimer le marqueur</button>
-      <button class="ag-btn2" onclick="document.getElementById('arGuide').classList.add('hide')">Commencer sans imprimer</button>
+      <button class="ag-btn2" onclick="document.getElementById('arGuide').classList.add('hide')">Scanner sans imprimer</button>
     </div>
-
   </div>
 </div>
 
@@ -340,9 +297,9 @@ html,body{height:100%;width:100%;font-family:'Nunito',sans-serif;background:var(
 
 <script>
 'use strict';
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 //  CATALOG
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
 const CAT={
   baignoire:{g:'san',ico:'🛁',label:'Baignoire',       w:1.70,d:.75,h3:.55,water:true, zR:{z1:.60,z2:1.20}},
   douche_it:{g:'san',ico:'🚿',label:'Douche italienne',w:.90, d:.90,h3:.005,water:true,zR:{z1:.60,z2:1.20}},
@@ -364,7 +321,6 @@ const ST={
   gridM:.20,drawTool:'poly',sheetOpen:false,drawerOpen:false,
   dScale:90,dPanX:30,dPanY:30,pScale:80,pPanX:30,pPanY:30,
 };
-const AR={rotY:0,scale:1.0,zonesOn:true,elecOn:true,ready:false};
 
 // ─── ZONES ───
 function distToEdge(px,py){let m=Infinity;for(const el of ST.elements){const c=CAT[el.type];if(!c?.water)continue;const cx=Math.max(el.x-c.w/2,Math.min(el.x+c.w/2,px)),cy=Math.max(el.y-c.d/2,Math.min(el.y+c.d/2,py));m=Math.min(m,Math.hypot(px-cx,py-cy)*100);}return m;}
@@ -507,14 +463,12 @@ function updProp(id){
 }
 function sP(id,k,v){const el=ST.elements.find(e=>e.id===id);if(!el)return;el[k]=v;updEl(el);drawPlace();updProp(id);}
 function delEl(id){ST.elements=ST.elements.filter(e=>e.id!==id);closeProp();drawPlace();}
-
-// ─── VALIDATION ───
 function chkEl(el){
   const c=CAT[el.type];if(c?.g!=='el')return{errs:[],warns:[]};
   const errs=[],warns=[],zone=el.zone,h=el.heightM,d=el.distCm;
   if(c.zones&&!c.zones.includes(zone))errs.push(`Zone non autorisée (OK: ${c.zones.map(z=>z==='hors'?'hors-zone':'Zone '+z).join(', ')})`);
   if(c.minDistW&&d<c.minDistW)errs.push(`Trop proche du bord: ${Math.round(d)}cm (min ${c.minDistW}cm)`);
-  if(c.minH&&h<c.minH){if(el.type==='vmc')warns.push(`H recommandée >${c.minH}m`);else errs.push(`Trop bas: ${h.toFixed(2)}m (min ${c.minH}m)`);}
+  if(c.minH&&h<c.minH){if(el.type==='vmc')warns.push(`H recommandée >${c.minH}m`);else errs.push(`Trop bas: ${h.toFixed(2)}m`);}
   if(c.maxH&&h>c.maxH)warns.push(`H élevée: ${h.toFixed(2)}m`);
   const ipN=v=>parseInt(v.replace('IP',''))||0;
   if(ipN(el.ip||'IP21')<ipN((zone===1||zone===2)?'IP44':'IP21'))errs.push(`IP insuffisant: ${el.ip}`);
@@ -523,227 +477,247 @@ function chkEl(el){
   return{errs,warns};
 }
 
-// ═══════════════════════════════════════════════════════
-//  AR — A-Frame + AR.js (marqueur Hiro)
-//  Chargé depuis CDN uniquement sur HTTPS (GitHub Pages)
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════
+//  AR — IFRAME ISOLÉE
+//  A-Frame est chargé DANS l'iframe uniquement
+//  → pas d'interférence avec le DOM principal
+// ═══════════════════════════════════════
+let arIframe = null;
+let arVisible = {zones:true, elec:true};
+
 function initAR(){
-  if(AR.ready)return;
-  setSt('scan','Chargement A-Frame + AR.js…');
-  drawMarkerOnCanvas('markerCv');
+  if(arIframe) return; // déjà initialisé
+  drawMarkerCanvas('markerCv');
+  setSt('scan','Génération de la scène AR…');
+  updateVolPanel();
 
-  // A-Frame + AR.js sont déjà chargés via <script> en haut du fichier
-  // On attend que AFRAME soit disponible
-  waitForAframe(()=>{
-    buildARScene();
-    AR.ready=true;
-    setInterval(updateVolPanel,2000);
+  // Construire le HTML complet de l'iframe avec A-Frame intégré
+  const sceneData = buildSceneData();
+  const iframeHTML = buildARIframeHTML(sceneData);
+
+  // Créer le blob URL pour l'iframe (même origine = accès caméra autorisé)
+  const blob = new Blob([iframeHTML], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+
+  arIframe = document.createElement('iframe');
+  arIframe.src = url;
+  arIframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;z-index:1';
+  arIframe.allow = 'camera';
+  document.getElementById('arIframeWrap').appendChild(arIframe);
+
+  // Écouter les messages de l'iframe
+  window.addEventListener('message', e => {
+    if(e.data?.type === 'arStatus') setSt(e.data.st, e.data.txt);
+    if(e.data?.type === 'markerFound') {
+      setSt('go','✓ Marqueur détecté · Scène ancrée au sol');
+      document.getElementById('arGuide').classList.add('hide');
+    }
+    if(e.data?.type === 'markerLost') setSt('rdy','Repositionnez le marqueur dans la vue');
   });
+
+  setTimeout(()=>setSt('rdy','Pointez vers le marqueur Hiro posé au sol'), 2000);
 }
 
-function waitForAframe(cb,tries=0){
-  if(window.AFRAME){cb();return;}
-  if(tries>40){setSt('scan','Erreur chargement AR.js — vérifiez la connexion');return;}
-  setTimeout(()=>waitForAframe(cb,tries+1),300);
+// Envoyer des commandes à l'iframe
+function sendAR(cmd){
+  if(!arIframe?.contentWindow) return;
+  arIframe.contentWindow.postMessage({cmd}, '*');
+  if(cmd==='zones'){arVisible.zones=!arVisible.zones;document.getElementById('bZ').classList.toggle('on',arVisible.zones);}
+  if(cmd==='elec'){arVisible.elec=!arVisible.elec;document.getElementById('bE').classList.toggle('on',arVisible.elec);}
 }
 
-// Génère le marqueur Hiro en canvas
-function drawMarkerOnCanvas(canvasId){
-  const cv=document.getElementById(canvasId);if(!cv)return;
+function buildSceneData(){
+  const RH=parseFloat(document.getElementById('inH')?.value)||2.5;
+  const mf=document.getElementById('matF')?.value||'antiderapant';
+  const mw=document.getElementById('matW')?.value||'carrelage';
+  let mnx=0,mxx=3,mny=0,mxy=2.4;
+  if(ST.walls.length)for(const w of ST.walls)for(const p of w.pts){mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);}
+  return {
+    RH,mf,mw,mnx,mxx,mny,mxy,
+    elements: ST.elements.map(el=>({...el,errs:chkEl(el).errs,warns:chkEl(el).warns}))
+  };
+}
+
+function buildARIframeHTML(d){
+  const{RH,mf,mw,mnx,mxx,mny,mxy}=d;
+  const ZH=2.25;
+  const cx=(mnx+mxx)/2, cz=-((mny+mxy)/2);
+  const rW=mxx-mnx, rD=mxy-mny;
+  const floorCol={carrelage:'#b8c8d8',antiderapant:'#a09070',resine:'#b0aca4'}[mf]||'#aaa';
+  const wallCol={carrelage:'rgba(220,235,250,0.22)',beton:'rgba(205,212,220,0.22)',peinture:'rgba(242,238,228,0.22)'}[mw]||'rgba(220,232,245,0.22)';
+
+  // Générer le marqueur Hiro en data URL
+  const markerURL = genMarkerURL();
+
+  let ents='';
+
+  // Sol
+  ents+=`<a-plane position="${cx} 0.001 ${cz}" rotation="-90 0 0" width="${rW}" height="${rD}" color="${floorCol}" opacity="0.88"></a-plane>`;
+  // Grille sol
+  if(mf==='carrelage'||mf==='antiderapant'){
+    for(let x=mnx;x<=mxx;x+=.4)ents+=`<a-box position="${x} 0.003 ${cz}" width="0.005" height="0.002" depth="${rD}" color="#6080a0" opacity="0.18"></a-box>`;
+    for(let z=mny;z<=mxy;z+=.4)ents+=`<a-box position="${cx} 0.003 ${-z}" width="${rW}" height="0.002" depth="0.005" color="#6080a0" opacity="0.18"></a-box>`;
+  }
+  // Murs
+  ents+=`<a-box position="${cx} ${RH/2} ${-mny+.02}" width="${rW}" height="${RH}" depth="0.04" color="#ddeaf5" opacity="0.2"></a-box>`;
+  ents+=`<a-box position="${cx} ${RH/2} ${-mxy-.02}" width="${rW}" height="${RH}" depth="0.04" color="#ddeaf5" opacity="0.2"></a-box>`;
+  ents+=`<a-box position="${mnx-.02} ${RH/2} ${cz}" width="0.04" height="${RH}" depth="${rD}" color="#ddeaf5" opacity="0.2"></a-box>`;
+  ents+=`<a-box position="${mxx+.02} ${RH/2} ${cz}" width="0.04" height="${RH}" depth="${rD}" color="#ddeaf5" opacity="0.2"></a-box>`;
+
+  // Sanitaires
+  for(const el of d.elements){
+    const c=CAT[el.type];if(!c?.water)continue;
+    const h=c.h3||.5;
+    const col={baignoire:'#8fb8d0',douche_it:'#78b0c8',lavabo:'#a0c8e0',wc:'#b0b4c0'}[el.type]||'#aaa';
+    ents+=`<a-box position="${el.x} ${h/2} ${-el.y}" width="${c.w}" height="${h}" depth="${c.d}" color="${col}" opacity="0.92"></a-box>`;
+    if(el.type==='baignoire')ents+=`<a-plane position="${el.x} ${h*.45+.005} ${-el.y}" rotation="-90 0 0" width="${c.w*.8}" height="${c.d*.8}" color="#60b4e0" opacity="0.4"></a-plane>`;
+    if(el.type==='douche_it')ents+=`<a-plane position="${el.x} .008 ${-el.y}" rotation="-90 0 0" width="${c.w}" height="${c.d}" color="#70c0d8" opacity="0.45"></a-plane>`;
+  }
+
+  // ZONES NF C 15-100 — boîtes rectangulaires avec hauteur H=2,25m
+  for(const el of d.elements){
+    const c=CAT[el.type];if(!c?.water||!c.zR)continue;
+    const{z1:r1,z2:r2}=c.zR;
+    const z2w=c.w+2*r2,z2d=c.d+2*r2,z1w=c.w+2*r1,z1d=c.d+2*r1;
+    // Zone 2 bleue
+    ents+=`<a-box id="z2e${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z2w}" height="${ZH}" depth="${z2d}" color="#2563eb" opacity="0.055" side="double"></a-box>`;
+    ents+=`<a-box id="z2w${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z2w+.01}" height="${ZH}" depth="${z2d+.01}" color="#3b82f6" opacity="0.25" wireframe="true"></a-box>`;
+    // Zone 1 orange
+    ents+=`<a-box id="z1e${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z1w}" height="${ZH}" depth="${z1d}" color="#d97706" opacity="0.075" side="double"></a-box>`;
+    ents+=`<a-box id="z1w${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z1w+.01}" height="${ZH}" depth="${z1d+.01}" color="#f59e0b" opacity="0.3" wireframe="true"></a-box>`;
+    // Zone 0 rouge
+    ents+=`<a-box id="z0e${el.id}" position="${el.x} ${(c.h3||.5)/2} ${-el.y}" width="${c.w}" height="${c.h3||.5}" depth="${c.d}" color="#dc2626" opacity="0.12" side="double"></a-box>`;
+    // Plafond H=2,25m
+    ents+=`<a-plane id="zh${el.id}" position="${el.x} ${ZH} ${-el.y}" rotation="-90 0 0" width="${z1w}" height="${z1d}" color="#f59e0b" opacity="0.12"></a-plane>`;
+    // Labels
+    ents+=`<a-text id="lz2${el.id}" value="Zone 2" position="${el.x} ${ZH*.65} ${-(el.y-z2d/2-.08)}" color="#60a5fa" width="1.8" align="center"></a-text>`;
+    ents+=`<a-text id="lz1${el.id}" value="Zone 1" position="${el.x} ${ZH*.45} ${-(el.y-z1d/2-.08)}" color="#fbbf24" width="1.8" align="center"></a-text>`;
+    ents+=`<a-text id="lzh${el.id}" value="H = 2,25 m" position="${el.x} ${ZH+.15} ${-(el.y)}" color="#fcd34d" width="1.8" align="center"></a-text>`;
+  }
+
+  // Éléments électriques
+  for(const el of d.elements){
+    const c=CAT[el.type];if(c?.g!=='el')continue;
+    const col=el.errs.length?'#f87171':el.warns.length?'#fbbf24':'#34d399';
+    const h=el.heightM||1;
+    ents+=`<a-cylinder id="el${el.id}" position="${el.x} ${h} ${-el.y}" radius="0.08" height="0.04" color="${col}" opacity="0.9"></a-cylinder>`;
+    ents+=`<a-cylinder id="eg${el.id}" position="${el.x} ${h/2} ${-el.y}" radius="0.007" height="${h}" color="${col}" opacity="0.35"></a-cylinder>`;
+    ents+=`<a-text id="et${el.id}" value="${c.label}\\n${h.toFixed(2)}m" position="${el.x} ${h+.18} ${-el.y}" color="${col}" width="2" align="center" baseline="bottom"></a-text>`;
+    if(el.errs.length)ents+=`<a-ring id="er${el.id}" position="${el.x} ${h} ${-el.y}" radius-inner="0.09" radius-outer="0.13" color="#f87171" opacity="0.75" animation="property:rotation;to:0 360 0;loop:true;dur:2500;easing:linear"></a-ring>`;
+  }
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://aframe.io/releases/1.4.0/aframe.min.js"><\/script>
+<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"><\/script>
+<style>body{margin:0;overflow:hidden}a-scene{width:100vw;height:100vh}</style>
+</head>
+<body>
+<a-scene
+  arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;trackingMethod:best;"
+  renderer="logarithmicDepthBuffer:true;antialias:true;alpha:true;"
+  vr-mode-ui="enabled:false"
+  loading-screen="enabled:false">
+
+  <a-assets>
+    <img id="hiroImg" src="${markerURL}">
+  </a-assets>
+
+  <a-marker
+    id="hiroMarker"
+    type="pattern"
+    url="${markerURL}"
+    emitevents="true">
+    <a-entity id="arRoot" rotation="0 0 0" scale="1 1 1">
+      ${ents}
+    </a-entity>
+  </a-marker>
+
+  <a-entity camera></a-entity>
+</a-scene>
+
+<script>
+// Communiquer avec la page parente
+window.parent.postMessage({type:'arStatus',st:'rdy',txt:'AR.js chargé'},'*');
+document.addEventListener('DOMContentLoaded',()=>{
+  const marker=document.getElementById('hiroMarker');
+  if(marker){
+    marker.addEventListener('markerFound',()=>window.parent.postMessage({type:'markerFound'},'*'));
+    marker.addEventListener('markerLost',()=>window.parent.postMessage({type:'markerLost'},'*'));
+  }
+});
+// Recevoir les commandes du parent
+let rotY=0,scale=1,zonesOn=true,elecOn=true;
+window.addEventListener('message',e=>{
+  const cmd=e.data?.cmd;
+  const root=document.getElementById('arRoot');
+  if(!root)return;
+  if(cmd==='rot'){rotY+=15;root.setAttribute('rotation',\`0 \${rotY} 0\`);}
+  if(cmd==='bigger'){scale=Math.min(2,scale+.1);root.setAttribute('scale',\`\${scale} \${scale} \${scale}\`);}
+  if(cmd==='smaller'){scale=Math.max(.2,scale-.1);root.setAttribute('scale',\`\${scale} \${scale} \${scale}\`);}
+  if(cmd==='zones'){zonesOn=!zonesOn;document.querySelectorAll('[id^="z0"],[id^="z1"],[id^="z2"],[id^="zh"],[id^="lz"]').forEach(el=>el.setAttribute('visible',zonesOn));}
+  if(cmd==='elec'){elecOn=!elecOn;document.querySelectorAll('[id^="el"],[id^="eg"],[id^="et"],[id^="er"]').forEach(el=>el.setAttribute('visible',elecOn));}
+});
+<\/script>
+</body></html>`;
+}
+
+// Générer le marqueur Hiro en data URL
+function genMarkerURL(){
+  const cv=document.createElement('canvas');cv.width=256;cv.height=256;
+  drawMarkerCanvas2(cv);return cv.toDataURL('image/png');
+}
+function drawMarkerCanvas(id){
+  const cv=document.getElementById(id);if(!cv)return;
+  drawMarkerCanvas2(cv);
+}
+function drawMarkerCanvas2(cv){
   const ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
   ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#fff';ctx.fillRect(W*.1,H*.1,W*.8,H*.8);
   ctx.fillStyle='#000';ctx.fillRect(W*.18,H*.18,W*.64,H*.64);
   ctx.fillStyle='#fff';ctx.fillRect(W*.26,H*.26,W*.48,H*.48);
-  const s=W*.1,cx=W/2,cy=H/2;
+  const s=W*.1,cx2=W/2,cy2=H/2;
   ctx.fillStyle='#000';
-  ctx.fillRect(cx-s*.5,cy-s*1.8,s,s*3.6);
-  ctx.fillRect(cx-s*1.8,cy-s*.5,s*3.6,s);
-  [[cx-s*2,cy-s*2],[cx+s,cy-s*2],[cx-s*2,cy+s],[cx+s,cy+s]].forEach(([x,y])=>ctx.fillRect(x,y,s,s));
-}
-
-function getMarkerDataURL(){
-  const cv=document.createElement('canvas');cv.width=256;cv.height=256;
-  drawMarkerOnCanvas2(cv);return cv.toDataURL('image/png');
-}
-
-function drawMarkerOnCanvas2(cv){
-  const ctx=cv.getContext('2d'),W=256,H=256;
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#fff';ctx.fillRect(W*.1,H*.1,W*.8,H*.8);
-  ctx.fillStyle='#000';ctx.fillRect(W*.18,H*.18,W*.64,H*.64);
-  ctx.fillStyle='#fff';ctx.fillRect(W*.26,H*.26,W*.48,H*.48);
-  const s=W*.1,cx=W/2,cy=H/2;
-  ctx.fillStyle='#000';
-  ctx.fillRect(cx-s*.5,cy-s*1.8,s,s*3.6);ctx.fillRect(cx-s*1.8,cy-s*.5,s*3.6,s);
-  [[cx-s*2,cy-s*2],[cx+s,cy-s*2],[cx-s*2,cy+s],[cx+s,cy+s]].forEach(([x,y])=>ctx.fillRect(x,y,s,s));
+  ctx.fillRect(cx2-s*.5,cy2-s*1.8,s,s*3.6);
+  ctx.fillRect(cx2-s*1.8,cy2-s*.5,s*3.6,s);
+  [[cx2-s*2,cy2-s*2],[cx2+s,cy2-s*2],[cx2-s*2,cy2+s],[cx2+s,cy2+s]].forEach(([x,y])=>ctx.fillRect(x,y,s,s));
 }
 
 function printMarker(){
-  const cv=document.createElement('canvas');cv.width=256;cv.height=256;drawMarkerOnCanvas2(cv);
-  const url=cv.toDataURL('image/png');
+  const url=genMarkerURL();
   const w=window.open('');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Marqueur Hiro · ÉlecStudio</title>
-  <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;font-family:sans-serif;padding:20px}
-  img{width:200px;height:200px;image-rendering:pixelated;border:3px solid #000;display:block;margin:0 auto 20px}
-  h2{font-size:18px;margin-bottom:10px;text-align:center;color:#1b2236}
-  p{font-size:13px;color:#6b7898;text-align:center;max-width:280px;line-height:1.6;margin:0 auto}
+  <style>body{margin:20px;display:flex;flex-direction:column;align-items:center;font-family:sans-serif}
+  img{width:220px;height:220px;image-rendering:pixelated;border:3px solid #000;margin-bottom:16px}
+  h2{font-size:17px;margin-bottom:8px;color:#1b2236}p{font-size:13px;color:#6b7898;text-align:center;max-width:280px;line-height:1.6}
   @media print{button{display:none}}</style></head>
-  <body><img src="${url}"><h2>Marqueur HIRO · ÉlecStudio RA</h2>
-  <p><b>Découpez et posez à plat au sol</b> de la salle de bain.<br>Pointez votre téléphone depuis <b>50–80 cm</b>.<br>La scène 3D s'ancre et reste fixée.</p>
-  <button onclick="window.print()" style="margin-top:20px;padding:10px 24px;border-radius:9px;border:none;background:#2563eb;color:#fff;font-size:15px;cursor:pointer">🖨️ Imprimer</button>
+  <body><img src="${url}"><h2>Marqueur HIRO · ÉlecStudio RA v1.5</h2>
+  <p><b>Découpez et posez à plat au sol</b><br>Pointez le téléphone depuis 50–80 cm<br>La scène 3D s'ancre et reste fixée</p>
+  <button onclick="print()" style="margin-top:14px;padding:10px 22px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:14px;cursor:pointer">🖨️ Imprimer</button>
   </body></html>`);
 }
 
-function buildARScene(){
-  const RH=parseFloat(document.getElementById('inH')?.value)||2.5,ZH=2.25;
-  const mf=document.getElementById('matF')?.value||'antiderapant';
-  const mw=document.getElementById('matW')?.value||'carrelage';
-  let mnx=0,mxx=3,mny=0,mxy=2.4;
-  if(ST.walls.length)for(const w of ST.walls)for(const p of w.pts){mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);}
-  const rW=mxx-mnx,rD=mxy-mny,cx=mnx+rW/2,cz=-(mny+rD/2);
-
-  const floorCol={carrelage:'#b8c8d8',antiderapant:'#a09070',resine:'#b0aca4'}[mf]||'#aaa';
-  const wallCol={carrelage:'#dde8f5',beton:'#d0d5dc',peinture:'#f0ece6'}[mw]||'#dde8f2';
-
-  const markerURL=getMarkerDataURL();
-
-  let ents='';
-
-  // Sol
-  ents+=`<a-plane position="${cx} 0.001 ${cz}" rotation="-90 0 0" width="${rW}" height="${rD}" color="${floorCol}" opacity="0.9" shadow></a-plane>`;
-
-  // Grille sol
-  if(mf==='carrelage'||mf==='antiderapant'){
-    for(let x=mnx;x<=mxx;x+=.4)ents+=`<a-box position="${x} 0.003 ${cz}" width="0.005" height="0.003" depth="${rD}" color="#7090a8" opacity="0.18"></a-box>`;
-    for(let z=mny;z<=mxy;z+=.4)ents+=`<a-box position="${cx} 0.003 ${-z}" width="${rW}" height="0.003" depth="0.005" color="#7090a8" opacity="0.18"></a-box>`;
-  }
-
-  // Murs semi-transparents
-  ents+=`<a-box position="${cx} ${RH/2} ${-mny}" width="${rW}" height="${RH}" depth="0.04" color="${wallCol}" opacity="0.22"></a-box>`;
-  ents+=`<a-box position="${cx} ${RH/2} ${-mxy}" width="${rW}" height="${RH}" depth="0.04" color="${wallCol}" opacity="0.22"></a-box>`;
-  ents+=`<a-box position="${mnx} ${RH/2} ${cz}" width="0.04" height="${RH}" depth="${rD}" color="${wallCol}" opacity="0.22"></a-box>`;
-  ents+=`<a-box position="${mxx} ${RH/2} ${cz}" width="0.04" height="${RH}" depth="${rD}" color="${wallCol}" opacity="0.22"></a-box>`;
-
-  // Plafond fantôme
-  ents+=`<a-plane position="${cx} ${RH} ${cz}" rotation="90 0 0" width="${rW}" height="${rD}" color="#fff" opacity="0.04"></a-plane>`;
-
-  // Sanitaires 3D
-  for(const el of ST.elements){
-    const c=CAT[el.type];if(!c?.water)continue;
-    const h=c.h3||.5;
-    const sc={baignoire:'#8fb8d0',douche_it:'#78b0c8',lavabo:'#a0c8e0',wc:'#b8bcc8'}[el.type]||'#aaa';
-    ents+=`<a-box position="${el.x} ${h/2} ${-el.y}" width="${c.w}" height="${h}" depth="${c.d}" color="${sc}" opacity="0.92" shadow></a-box>`;
-    if(el.type==='baignoire')ents+=`<a-plane position="${el.x} ${h*.45+.005} ${-el.y}" rotation="-90 0 0" width="${c.w*.8}" height="${c.d*.8}" color="#60b4e0" opacity="0.4"></a-plane>`;
-    if(el.type==='douche_it')ents+=`<a-plane position="${el.x} 0.008 ${-el.y}" rotation="-90 0 0" width="${c.w}" height="${c.d}" color="#70c0d8" opacity="0.45"></a-plane>`;
-  }
-
-  // ZONES NF C 15-100 — prismes rectangulaires avec hauteurs correctes
-  for(const el of ST.elements){
-    const c=CAT[el.type];if(!c?.water||!c.zR)continue;
-    const{z1:r1,z2:r2}=c.zR;
-
-    // Zone 2 (bleu, 0–120cm, H≤2,25m)
-    const z2w=c.w+2*r2,z2d=c.d+2*r2;
-    ents+=`<a-box data-ar-zones id="z2_${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z2w}" height="${ZH}" depth="${z2d}" color="#2563eb" opacity="0.055" side="double"></a-box>`;
-    ents+=`<a-box data-ar-zones position="${el.x} ${ZH/2} ${-el.y}" width="${z2w}" height="${ZH}" depth="${z2d}" color="#2563eb" opacity="0.0" wireframe="true"></a-box>`;
-    // Faces filaires manuelles (wireframe visible)
-    ents+=`<a-box data-ar-zones position="${el.x} ${ZH/2} ${-el.y}" width="${z2w+.01}" height="${ZH}" depth="${z2d+.01}" color="#3b82f6" opacity="0.25" wireframe="true"></a-box>`;
-
-    // Zone 1 (orange, 0–60cm, H≤2,25m)
-    const z1w=c.w+2*r1,z1d=c.d+2*r1;
-    ents+=`<a-box data-ar-zones position="${el.x} ${ZH/2} ${-el.y}" width="${z1w}" height="${ZH}" depth="${z1d}" color="#d97706" opacity="0.075" side="double"></a-box>`;
-    ents+=`<a-box data-ar-zones position="${el.x} ${ZH/2} ${-el.y}" width="${z1w+.01}" height="${ZH}" depth="${z1d+.01}" color="#f59e0b" opacity="0.3" wireframe="true"></a-box>`;
-
-    // Zone 0 (rouge, intérieur fixture)
-    ents+=`<a-box data-ar-zones position="${el.x} ${(c.h3||.5)/2} ${-el.y}" width="${c.w}" height="${c.h3||.5}" depth="${c.d}" color="#dc2626" opacity="0.12" side="double"></a-box>`;
-
-    // Plafond de zone à H=2,25m (plan horizontal visible)
-    ents+=`<a-plane data-ar-zones position="${el.x} ${ZH} ${-el.y}" rotation="-90 0 0" width="${z1w}" height="${z1d}" color="#f59e0b" opacity="0.12"></a-plane>`;
-
-    // Labels de zone
-    ents+=`<a-text data-ar-zones value="Zone 2" position="${el.x} ${ZH*.7} ${-(el.y-z2d/2-.05)}" rotation="0 0 0" color="#60a5fa" width="2" align="center"></a-text>`;
-    ents+=`<a-text data-ar-zones value="Zone 1" position="${el.x} ${ZH*.5} ${-(el.y-z1d/2-.05)}" rotation="0 0 0" color="#fbbf24" width="2" align="center"></a-text>`;
-    ents+=`<a-text data-ar-zones value="H max = 2,25 m" position="${el.x} ${ZH+.12} ${-(el.y)}" rotation="0 0 0" color="#fcd34d" width="2" align="center"></a-text>`;
-  }
-
-  // Éléments électriques
-  for(const el of ST.elements){
-    const c=CAT[el.type];if(c?.g!=='el')continue;
-    const{errs,warns}=chkEl(el);
-    const col=errs.length?'#f87171':warns.length?'#fbbf24':'#34d399';
-    const h=el.heightM||1;
-    // Disque sur mur
-    ents+=`<a-cylinder data-ar-elec position="${el.x} ${h} ${-el.y}" radius="0.08" height="0.04" color="${col}" opacity="0.9" shadow></a-cylinder>`;
-    // Ligne verticale guide
-    ents+=`<a-cylinder data-ar-elec position="${el.x} ${h/2} ${-el.y}" radius="0.007" height="${h}" color="${col}" opacity="0.35"></a-cylinder>`;
-    // Étiquette
-    ents+=`<a-text data-ar-elec value="${c.label}\\n${h.toFixed(2)}m" position="${el.x} ${h+.18} ${-el.y}" rotation="0 0 0" color="${col}" width="2" align="center" baseline="bottom"></a-text>`;
-    // Anneau d'erreur animé
-    if(errs.length)ents+=`<a-ring data-ar-elec position="${el.x} ${h} ${-el.y}" radius-inner="0.09" radius-outer="0.13" color="#f87171" opacity="0.75" animation="property:rotation;to:0 360 0;loop:true;dur:2500;easing:linear"></a-ring>`;
-  }
-
-  // Injection de la scène A-Frame
-  document.getElementById('arScene').innerHTML=`
-<a-scene
-  embedded
-  arjs="sourceType:webcam; debugUIEnabled:false; detectionMode:mono_and_matrix; matrixCodeType:3x3; trackingMethod:best;"
-  renderer="logarithmicDepthBuffer:true; antialias:true; alpha:true;"
-  vr-mode-ui="enabled:false"
-  loading-screen="enabled:false"
-  style="width:100%;height:100%;position:absolute;inset:0;">
-
-  <a-assets>
-    <img id="hiroImg" src="${markerURL}">
-  </a-assets>
-
-  <!-- Marqueur Hiro : la scène entière s'ancre ici -->
-  <a-marker
-    id="hiroMarker"
-    type="pattern"
-    url="${markerURL}"
-    emitevents="true">
-
-    <a-entity
-      id="arRoot"
-      rotation="0 ${AR.rotY} 0"
-      scale="${AR.scale} ${AR.scale} ${AR.scale}">
-      ${ents}
-    </a-entity>
-
-  </a-marker>
-
-  <a-entity camera></a-entity>
-</a-scene>`;
-
-  // Événements marqueur
-  setTimeout(()=>{
-    const marker=document.getElementById('hiroMarker');
-    if(marker){
-      marker.addEventListener('markerFound',()=>{
-        setSt('go','✓ Marqueur détecté · Scène ancrée au sol');
-        document.getElementById('arGuide').classList.add('hide');
-        updateVolPanel();
-      });
-      marker.addEventListener('markerLost',()=>{
-        setSt('rdy','Repositionnez le marqueur dans la vue');
-      });
-    }
-    setSt('rdy','Pointez vers le marqueur Hiro posé au sol');
-    document.getElementById('arGuide').classList.remove('hide');
-  },1000);
+function setSt(t,txt){
+  const d=document.getElementById('stDot');
+  if(d)d.className='sdt '+t;
+  const s=document.getElementById('stTxt');
+  if(s)s.textContent=txt;
 }
-
-function toggleARVis(k){
-  if(k==='zones'){AR.zonesOn=!AR.zonesOn;document.getElementById('bZ').classList.toggle('on',AR.zonesOn);document.querySelectorAll('[data-ar-zones]').forEach(e=>e.setAttribute('visible',AR.zonesOn));}
-  if(k==='elec'){AR.elecOn=!AR.elecOn;document.getElementById('bE').classList.toggle('on',AR.elecOn);document.querySelectorAll('[data-ar-elec]').forEach(e=>e.setAttribute('visible',AR.elecOn));}
+function updateVolPanel(){
+  const v=calcVols();
+  const vp=document.getElementById('volP');
+  if(!vp)return;
+  vp.innerHTML=`<div class="vt">Volumes NF C 15-100</div>
+    <div class="vr"><span class="vk">Pièce</span><span class="vv">${v.roomVol.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 0</span><span class="vv" style="color:#f87171">${v.z0.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 1 H≤2,25m</span><span class="vv" style="color:#fbbf24">${v.z1.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 2 H≤2,25m</span><span class="vv" style="color:#93c5fd">${v.z2.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Hors zone</span><span class="vv" style="color:#34d399">${v.hors.toFixed(2)} m³</span></div>`;
 }
-function rotAR(deg){AR.rotY+=deg;const r=document.getElementById('arRoot');if(r)r.setAttribute('rotation',`0 ${AR.rotY} 0`);}
-function scaleAR(d){AR.scale=Math.max(.2,Math.min(2,AR.scale+d));const r=document.getElementById('arRoot');if(r)r.setAttribute('scale',`${AR.scale} ${AR.scale} ${AR.scale}`);}
-function setSt(t,txt){document.getElementById('stDot').className='sdt '+t;document.getElementById('stTxt').textContent=txt;}
-function updateVolPanel(){const v=calcVols();document.getElementById('volP').innerHTML=`<div class="vt">Volumes NF C 15-100</div><div class="vr"><span class="vk">Pièce</span><span class="vv">${v.roomVol.toFixed(2)} m³</span></div><div class="vr"><span class="vk">Zone 0</span><span class="vv" style="color:#f87171">${v.z0.toFixed(2)} m³</span></div><div class="vr"><span class="vk">Zone 1 H≤2,25m</span><span class="vv" style="color:#fbbf24">${v.z1.toFixed(2)} m³</span></div><div class="vr"><span class="vk">Zone 2 H≤2,25m</span><span class="vv" style="color:#93c5fd">${v.z2.toFixed(2)} m³</span></div><div class="vr"><span class="vk">Hors zone</span><span class="vv" style="color:#34d399">${v.hors.toFixed(2)} m³</span></div>`;}
 
 // ─── NORMES ───
 function runVal(){
@@ -754,15 +728,7 @@ function runVal(){
 }
 function renderNormes(){
   runVal();
-  const F=[{t:'prise',z:'Hors zone',zc:'ok',h:'0,95–1,30m',d:'min 1,20m',ip:'IP21',cl:'II',ref:'§701.55.1',n:'Circuit 20A dédié'},
-    {t:'interrupteur',z:'Hors zone',zc:'ok',h:'0,90–1,30m',d:'min 0,60m',ip:'IP21',cl:'II',ref:'§701.56'},
-    {t:'dcl',z:'Zones 1/2/Hors',zc:'wn',h:'> 2,20m',d:'—',ip:'IP44 zones',cl:'II',ref:'§701.55.3',n:'Alimentation DCL'},
-    {t:'spot',z:'Toutes zones',zc:'wn',h:'> 2,00m',d:'—',ip:'IP44 zones',cl:'II',ref:'§701.55.3'},
-    {t:'applique',z:'Zone 2/Hors',zc:'wn',h:'> 2,25m',d:'—',ip:'IP44',cl:'II',ref:'§701.55.3'},
-    {t:'hublot',z:'Zones 1/2/Hors',zc:'wn',h:'> 2,00m',d:'—',ip:'IP44',cl:'II',ref:'§701.55'},
-    {t:'seche',z:'Zone 1 ou 2',zc:'wn',h:'variable',d:'fixe',ip:'IP44',cl:'II',ref:'§701.55.4',n:'Circuit dédié'},
-    {t:'vmc',z:'Toutes (hauteur)',zc:'ok',h:'> 2,25m',d:'—',ip:'IP45',cl:'II',ref:'§701.55.5',n:'15m³/h min'},
-    {t:'tableau',z:'Hors zone',zc:'ok',h:'accessible',d:'min 1,20m',ip:'IP21',cl:'II',ref:'§701.53',n:'Déconseillé SDB'}];
+  const F=[{t:'prise',z:'Hors zone',zc:'ok',h:'0,95–1,30m',d:'min 1,20m',ip:'IP21',cl:'II',ref:'§701.55.1',n:'Circuit 20A dédié'},{t:'interrupteur',z:'Hors zone',zc:'ok',h:'0,90–1,30m',d:'min 0,60m',ip:'IP21',cl:'II',ref:'§701.56'},{t:'dcl',z:'Zones 1/2/Hors',zc:'wn',h:'> 2,20m',d:'—',ip:'IP44 zones',cl:'II',ref:'§701.55.3',n:'Alimentation DCL'},{t:'spot',z:'Toutes zones',zc:'wn',h:'> 2,00m',d:'—',ip:'IP44 zones',cl:'II',ref:'§701.55.3'},{t:'applique',z:'Zone 2/Hors',zc:'wn',h:'> 2,25m',d:'—',ip:'IP44',cl:'II',ref:'§701.55.3'},{t:'hublot',z:'Zones 1/2/Hors',zc:'wn',h:'> 2,00m',d:'—',ip:'IP44',cl:'II',ref:'§701.55'},{t:'seche',z:'Zone 1 ou 2',zc:'wn',h:'variable',d:'fixe',ip:'IP44',cl:'II',ref:'§701.55.4',n:'Circuit dédié'},{t:'vmc',z:'Toutes (hauteur)',zc:'ok',h:'> 2,25m',d:'—',ip:'IP45',cl:'II',ref:'§701.55.5',n:'15m³/h min'},{t:'tableau',z:'Hors zone',zc:'ok',h:'accessible',d:'min 1,20m',ip:'IP21',cl:'II',ref:'§701.53',n:'Déconseillé SDB'}];
   document.getElementById('normWrap').innerHTML=`<div id="validRes"></div><div class="zleg"><div class="zlt">Zones NF C 15-100 §701</div><div class="zlr"><div class="zlsw" style="background:rgba(220,38,38,.55)"></div><div><b>Zone 0</b> — intérieur baignoire/douche</div></div><div class="zlr"><div class="zlsw" style="background:rgba(217,119,6,.5)"></div><div><b>Zone 1</b> — 0→60cm du bord · H≤2,25m</div></div><div class="zlr"><div class="zlsw" style="background:rgba(37,99,235,.4)"></div><div><b>Zone 2</b> — 60→120cm du bord · H≤2,25m</div></div><div class="zlr"><div class="zlsw" style="background:#94a3b8"></div><div><b>Hors zone</b> — >120cm ou H>2,25m</div></div></div>${F.map(f=>{const c=CAT[f.t];return`<div class="ncard"><div class="nhead"><span class="nico">${c.ico}</span><span class="nname">${c.label}</span><span class="nzone ${f.zc}">${f.z}</span></div><div class="nbody"><div class="nrow"><span class="nk">Hauteur</span><span class="nv">${f.h}</span></div><div class="nrow"><span class="nk">Dist. bord eau</span><span class="nv">${f.d}</span></div><div class="nrow"><span class="nk">IP</span><span class="nv">${f.ip}</span></div><div class="nrow"><span class="nk">Classe isol.</span><span class="nv">${f.cl}</span></div>${f.n?`<div class="nrow"><span class="nk">Note</span><span class="nv">${f.n}</span></div>`:''}</div><div class="nref">NF C 15-100 ${f.ref}</div></div>`;}).join('')}<div style="height:12px"></div>`;
   runVal();
 }
