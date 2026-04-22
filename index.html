@@ -1,743 +1,341 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>ÉlecStudio AR · NF C 15-100</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&family=Nunito:wght@500;600;700&display=swap" rel="stylesheet">
-<!--
-  A-Frame + AR.js sont chargés UNIQUEMENT quand on clique sur l'onglet RA
-  → pas de page blanche au démarrage
--->
-<style>
-:root{
-  --bg:#eef1f6;--sur:#fff;--bor:#dde2ed;--dk:#1b2236;--mid:#6b7898;
-  --ac:#2563eb;--acl:#eff6ff;--acd:#1d4ed8;
-  --ok:#059669;--okb:#ecfdf5;--wn:#d97706;--wnb:#fffbeb;--er:#dc2626;--erb:#fef2f2;
-}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;width:100%;font-family:'Nunito',sans-serif;background:var(--bg);color:var(--dk);overflow:hidden;user-select:none}
-.app{display:flex;flex-direction:column;height:100%}
-
-/* TOPBAR */
-.topbar{display:flex;align-items:center;gap:5px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:var(--dk);flex-shrink:0}
-.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:.9rem;color:#fff}
-.logo span{color:#60a5fa}
-.tsp{flex:1}
-.tb{padding:5px 9px;border-radius:7px;border:none;background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
-.tb:active{background:rgba(255,255,255,.22)} .tb.pri{background:var(--ac)}
-
-/* CONTENT */
-.content{flex:1;overflow:hidden;position:relative}
-.screen{position:absolute;inset:0;display:flex;overflow:hidden} .screen.off{display:none}
-
-/* TABBAR */
-.tabbar{display:flex;background:var(--sur);border-top:1px solid var(--bor);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -2px 10px rgba(0,0,0,.07)}
-.tabi{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:7px 4px 5px;cursor:pointer;gap:2px;border:none;background:transparent;min-height:52px}
-.tabi:active{background:var(--bg)}
-.tabi-ico{font-size:1.3rem;line-height:1;transition:transform .15s}
-.tabi-lbl{font-size:.58rem;font-weight:700;color:var(--mid);font-family:'Syne',sans-serif}
-.tabi.on .tabi-ico{transform:scale(1.1)} .tabi.on .tabi-lbl{color:var(--ac)}
-
-/* ══ TRACER ══ */
-.draw-main{flex:1;position:relative;overflow:hidden;background:#cdd5e0;touch-action:none}
-#cvDraw{display:block;touch-action:none;cursor:crosshair}
-.snap-ind{position:absolute;width:9px;height:9px;border-radius:50%;border:2px solid var(--ac);background:#fff;transform:translate(-50%,-50%);pointer-events:none;display:none;z-index:5}
-.draw-tb{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:10;background:rgba(255,255,255,.93);backdrop-filter:blur(8px);border:1px solid var(--bor);border-radius:12px;padding:5px 7px;box-shadow:0 2px 10px rgba(0,0,0,.1)}
-.dtb{width:36px;height:36px;border-radius:8px;border:none;background:transparent;font-size:1.05rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.dtb:active,.dtb.on{background:var(--ac);color:#fff}
-.draw-sheet{position:absolute;bottom:0;left:0;right:0;background:var(--sur);border-radius:14px 14px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.12);padding:10px 14px 14px;z-index:10;transform:translateY(100%);transition:transform .28s ease}
-.draw-sheet.open{transform:translateY(0)}
-.sh-h{width:36px;height:4px;border-radius:2px;background:var(--bor);margin:0 auto 10px}
-.sr2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-.sf{display:flex;flex-direction:column;gap:3px}
-.sf label{font-size:.62rem;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.5px}
-.sf input,.sf select{padding:7px 9px;border:1.5px solid var(--bor);border-radius:8px;font-size:.78rem;font-family:'Nunito',sans-serif;background:var(--bg);color:var(--dk);outline:none}
-.sf input:focus,.sf select:focus{border-color:var(--ac)}
-.sh-hint{font-size:.68rem;color:var(--acd);line-height:1.55;padding:6px 8px;background:var(--acl);border-radius:8px;margin-bottom:8px}
-.fab{position:absolute;bottom:14px;right:14px;width:46px;height:46px;border-radius:50%;background:var(--ac);color:#fff;border:none;font-size:1.2rem;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4);display:flex;align-items:center;justify-content:center;z-index:15}
-.fab:active{background:var(--acd)}
-
-/* ══ PLACER ══ */
-.place-main{flex:1;position:relative;overflow:hidden;background:#cdd5e0;touch-action:none}
-#cvPlace{display:block;touch-action:none}
-.elem-drawer{position:absolute;bottom:0;left:0;right:0;background:var(--sur);border-radius:14px 14px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.12);z-index:10;transform:translateY(calc(100% - 50px));transition:transform .28s ease}
-.elem-drawer.open{transform:translateY(0)}
-.dgrip{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 0;cursor:pointer;height:50px}
-.dgrip-t{font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem}
-.dgrip-a{font-size:.75rem;color:var(--mid);transition:transform .22s}
-.elem-drawer.open .dgrip-a{transform:rotate(180deg)}
-.esc{display:flex;overflow-x:auto;gap:7px;padding:8px 14px 14px;scrollbar-width:none}
-.esc::-webkit-scrollbar{display:none}
-.ec{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:60px;padding:7px 5px 6px;border-radius:11px;border:1.5px solid var(--bor);background:var(--bg);cursor:grab;touch-action:none;flex-shrink:0}
-.ec:active{border-color:var(--ac);background:var(--acl)}
-.ec-i{font-size:1.35rem;line-height:1} .ec-l{font-size:.56rem;font-weight:700;color:var(--mid);text-align:center;line-height:1.2}
-.ec-sep{width:1px;height:48px;background:var(--bor);flex-shrink:0;align-self:center}
-.prop-sheet{position:absolute;top:0;right:0;bottom:0;width:min(255px,85%);background:var(--sur);border-left:1px solid var(--bor);z-index:20;transform:translateX(100%);transition:transform .25s ease;overflow-y:auto;padding:12px}
-.prop-sheet.open{transform:translateX(0)}
-.ps-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}
-.ps-t{font-family:'Syne',sans-serif;font-weight:800;font-size:.88rem}
-.ps-x{width:27px;height:27px;border-radius:7px;border:1px solid var(--bor);background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem}
-.pf{margin-bottom:8px}
-.pf label{display:block;font-size:.62rem;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.pf input,.pf select{width:100%;padding:6px 8px;border:1.5px solid var(--bor);border-radius:7px;font-size:.76rem;font-family:'Nunito',sans-serif;background:var(--bg);outline:none}
-.pf input:focus,.pf select:focus{border-color:var(--ac)}
-.stch{padding:6px 9px;border-radius:7px;font-size:.7rem;font-weight:700;line-height:1.5;margin-top:5px}
-.stch.ok{background:var(--okb);color:var(--ok)} .stch.wn{background:var(--wnb);color:var(--wn)} .stch.er{background:var(--erb);color:var(--er)}
-.del-b{width:100%;padding:7px;border-radius:7px;border:none;background:var(--erb);color:var(--er);font-weight:700;font-size:.73rem;cursor:pointer;margin-top:7px}
-.zc{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:3px;z-index:10}
-.zb{width:31px;height:31px;border-radius:7px;background:rgba(255,255,255,.9);border:1px solid var(--bor);display:flex;align-items:center;justify-content:center;font-size:.85rem;cursor:pointer;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-.zlbl{font-size:.57rem;font-family:'JetBrains Mono',monospace;text-align:center;color:var(--mid);padding:2px 4px;background:rgba(255,255,255,.85);border-radius:5px}
-
-/* ══ AR — iframe isolée ══ */
-#scrAR{background:#111;flex-direction:column}
-/* L'iframe contient A-Frame, isolée du DOM principal */
-#arIframe{position:absolute;inset:0;width:100%;height:100%;border:none;z-index:1}
-/* HUD par-dessus l'iframe */
-.ar-hud{position:absolute;inset:0;z-index:10;pointer-events:none}
-.ar-top{position:absolute;top:0;left:0;right:0;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);display:flex;align-items:center;gap:6px;pointer-events:all}
-.alo{font-family:'Syne',sans-serif;font-weight:800;font-size:.82rem;color:#fff}
-.alo span{color:#60a5fa} .asp{flex:1}
-.ahb{padding:4px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.45);backdrop-filter:blur(5px);color:rgba(255,255,255,.85);font-family:'Nunito',sans-serif;font-size:.67rem;font-weight:700;cursor:pointer;pointer-events:all}
-.ahb.on{background:rgba(37,99,235,.5);border-color:rgba(96,165,250,.6)}
-.ar-st{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:6px 16px;font-size:.7rem;display:flex;align-items:center;gap:7px;white-space:nowrap;pointer-events:none}
-.sdt{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.sdt.scan{background:#fbbf24;animation:pd 1.4s ease-in-out infinite}
-.sdt.rdy{background:#34d399;animation:pd 1.4s ease-in-out infinite}
-.sdt.go{background:#60a5fa;animation:none}
-@keyframes pd{0%,100%{opacity:.4}50%{opacity:1}}
-.ar-leg{position:absolute;top:92px;right:10px;background:rgba(0,0,0,.55);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;font-size:.63rem;pointer-events:none}
-.lr{display:flex;align-items:center;gap:6px;padding:2px 0}
-.ld{width:9px;height:9px;border-radius:2px;flex-shrink:0}
-.vp{position:absolute;bottom:78px;right:10px;background:rgba(0,0,0,.55);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;font-size:.62rem;min-width:148px;pointer-events:none}
-.vt{font-family:'JetBrains Mono',monospace;font-size:.54rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px}
-.vr{display:flex;justify-content:space-between;gap:7px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.06)}
-.vr:last-child{border:none} .vk{color:rgba(255,255,255,.42);font-size:.59rem} .vv{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.59rem}
-.ar-bot{position:absolute;bottom:0;left:0;right:0;padding:7px 10px;padding-bottom:calc(7px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,rgba(0,0,0,.75),transparent);display:flex;gap:6px;pointer-events:all}
-.ar-bot .ahb{flex:1;text-align:center;padding:9px 4px}
-/* Guide marker */
-.ar-guide{position:absolute;inset:0;background:rgba(0,0,0,.9);z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;pointer-events:all}
-.ar-guide.hide{display:none}
-.ag-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;color:#fff;text-align:center}
-.ag-logo span{color:#60a5fa}
-.ag-mk{background:#fff;border-radius:10px;padding:10px}
-.ag-txt{font-size:.74rem;color:rgba(255,255,255,.6);text-align:center;line-height:1.7;max-width:260px}
-.ag-txt b{color:#fff}
-.ag-btn{padding:11px 26px;border-radius:11px;border:none;background:var(--ac);color:#fff;font-family:'Nunito',sans-serif;font-weight:700;font-size:.84rem;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4)}
-.ag-btn2{padding:7px 16px;border-radius:9px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:rgba(255,255,255,.65);font-family:'Nunito',sans-serif;font-weight:600;font-size:.73rem;cursor:pointer}
-
-/* ══ NORMES ══ */
-.nwrap{flex:1;overflow-y:auto;padding:12px;background:var(--bg);-webkit-overflow-scrolling:touch}
-.ncard{background:var(--sur);border-radius:10px;margin-bottom:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.nhead{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid var(--bor)}
-.nico{font-size:1.1rem} .nname{flex:1;font-weight:700;font-size:.8rem;font-family:'Syne',sans-serif}
-.nzone{font-size:.59rem;font-weight:700;padding:2px 7px;border-radius:8px;font-family:'JetBrains Mono',monospace}
-.nzone.ok{background:var(--okb);color:var(--ok)} .nzone.wn{background:var(--wnb);color:var(--wn)}
-.nbody{padding:8px 12px}
-.nrow{display:flex;justify-content:space-between;font-size:.69rem;padding:3px 0;border-bottom:1px solid var(--bg)}
-.nrow:last-child{border:none} .nk{color:var(--mid)} .nv{font-weight:600;font-size:.67rem;text-align:right}
-.nref{margin:0 12px 8px;font-size:.59rem;color:var(--mid);font-family:'JetBrains Mono',monospace;background:var(--bg);padding:4px 8px;border-radius:5px}
-.zleg{background:var(--sur);border-radius:10px;padding:12px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.zlt{font-family:'Syne',sans-serif;font-size:.6rem;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
-.zlr{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:.74rem}
-.zlsw{width:12px;height:12px;border-radius:2px;flex-shrink:0}
-#validRes .sw{background:var(--sur);border-radius:10px;padding:14px;text-align:center;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-</style>
-</head>
-<body>
-<div class="app">
-
-<!-- TOPBAR -->
-<div class="topbar">
-  <div class="logo">Élec<span>Studio</span> <span style="font-size:.58rem;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.35);font-weight:400;letter-spacing:.5px">v1.5</span></div>
-  <div class="tsp"></div>
-  <button class="tb pri" onclick="runVal();setTab('norm')">✓ Valider</button>
-  <button class="tb" onclick="newProj()">✦ Nouveau</button>
-</div>
-
-<!-- CONTENT -->
-<div class="content">
-
-<!-- TRACER -->
-<div class="screen" id="scrDraw">
-  <div class="draw-main" id="drawMain">
-    <canvas id="cvDraw"></canvas>
-    <div class="snap-ind" id="snapInd"></div>
-    <div class="draw-tb">
-      <button class="dtb on" id="tpoly" onclick="setTool('poly')">✏️</button>
-      <button class="dtb" id="trect" onclick="setTool('rect')">⬜</button>
-      <button class="dtb" id="tsel"  onclick="setTool('sel')">🤚</button>
-      <button class="dtb" id="topen" onclick="setTool('open')">🚪</button>
-      <div style="width:1px;background:var(--bor);margin:4px 2px"></div>
-      <button class="dtb" onclick="undoPt()">↩</button>
-      <button class="dtb" onclick="clrDraw()">🗑</button>
-      <button class="dtb" onclick="toggleSheet()">⚙️</button>
-    </div>
-    <div class="draw-sheet" id="drawSheet">
-      <div class="sh-h"></div>
-      <div class="sh-hint" id="dhint">Cliquez pour poser les coins. Double-clic ou retour au 1er point pour fermer.</div>
-      <div class="sr2">
-        <div class="sf"><label>Grille</label><select id="gridSel" onchange="ST.gridM=+this.value/100;reDraw()"><option value="10">10cm</option><option value="20" selected>20cm</option><option value="50">50cm</option></select></div>
-        <div class="sf"><label>Hauteur (m)</label><input type="number" id="inH" value="2.50" step="0.05" min="2" max="4"></div>
-      </div>
-      <div class="sr2">
-        <div class="sf"><label>Murs</label><select id="matW"><option value="carrelage">Carrelage</option><option value="beton">Béton</option><option value="peinture">Peinture</option></select></div>
-        <div class="sf"><label>Sol</label><select id="matF"><option value="antiderapant" selected>Anti-dérap.</option><option value="carrelage">Carrelage</option><option value="resine">Résine</option></select></div>
-      </div>
-      <div class="sr2">
-        <div class="sf"><label>Ouverture</label><select id="openT"><option value="door">Porte</option><option value="window">Fenêtre</option></select></div>
-        <div class="sf"><label>Largeur (m)</label><input type="number" id="openW" value="0.80" step="0.05" min="0.3" max="2"></div>
-      </div>
-      <button style="width:100%;padding:9px;border-radius:9px;border:none;background:var(--ac);color:#fff;font-weight:700;font-size:.78rem;cursor:pointer" onclick="setTab('place')">Placer les éléments →</button>
-    </div>
-    <button class="fab" onclick="toggleSheet()">⚙️</button>
-  </div>
-</div>
-
-<!-- PLACER -->
-<div class="screen off" id="scrPlace">
-  <div class="place-main" id="placeMain">
-    <canvas id="cvPlace"></canvas>
-    <div class="zc">
-      <div class="zb" onclick="pz(1.2)">+</div>
-      <div class="zlbl" id="zlbl">100%</div>
-      <div class="zb" onclick="pz(.83)">−</div>
-      <div class="zb" onclick="pzR()" style="font-size:.6rem">⊡</div>
-    </div>
-    <div class="elem-drawer" id="elemDrawer">
-      <div class="dgrip" onclick="toggleDrawer()">
-        <span class="dgrip-t">Éléments · glisser sur le plan</span>
-        <span class="dgrip-a">▲</span>
-      </div>
-      <div class="esc">
-        <div class="ec" data-type="baignoire"><span class="ec-i">🛁</span><span class="ec-l">Baignoire</span></div>
-        <div class="ec" data-type="douche_it"><span class="ec-i">🚿</span><span class="ec-l">Douche ital.</span></div>
-        <div class="ec" data-type="lavabo"><span class="ec-i">🪣</span><span class="ec-l">Lavabo</span></div>
-        <div class="ec" data-type="wc"><span class="ec-i">🚽</span><span class="ec-l">WC</span></div>
-        <div class="ec-sep"></div>
-        <div class="ec" data-type="dcl"><span class="ec-i">🔵</span><span class="ec-l">DCL</span></div>
-        <div class="ec" data-type="spot"><span class="ec-i">💡</span><span class="ec-l">Spot</span></div>
-        <div class="ec" data-type="applique"><span class="ec-i">🔦</span><span class="ec-l">Applique</span></div>
-        <div class="ec" data-type="hublot"><span class="ec-i">⭕</span><span class="ec-l">Hublot</span></div>
-        <div class="ec-sep"></div>
-        <div class="ec" data-type="prise"><span class="ec-i">🔌</span><span class="ec-l">Prise 16A</span></div>
-        <div class="ec" data-type="interrupteur"><span class="ec-i">🔆</span><span class="ec-l">Interrupteur</span></div>
-        <div class="ec" data-type="seche"><span class="ec-i">♨️</span><span class="ec-l">Sèche-s.</span></div>
-        <div class="ec" data-type="vmc"><span class="ec-i">🌀</span><span class="ec-l">VMC</span></div>
-        <div class="ec" data-type="tableau"><span class="ec-i">⚡</span><span class="ec-l">Tableau</span></div>
-      </div>
-    </div>
-    <div class="prop-sheet" id="propSheet">
-      <div class="ps-h"><span class="ps-t" id="psTitle">Propriétés</span><div class="ps-x" onclick="closeProp()">✕</div></div>
-      <div id="psContent"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ══ AR — iframe isolée ══ -->
-<div class="screen off" id="scrAR">
-  <!-- iframe injectée dynamiquement pour isoler A-Frame du DOM principal -->
-  <div id="arIframeWrap" style="position:absolute;inset:0;z-index:1"></div>
-  <div class="ar-hud">
-    <div class="ar-top">
-      <div class="alo">Élec<span>Studio</span> <span style="font-size:.52rem;opacity:.32;font-family:'JetBrains Mono',monospace">RA v1.5</span></div>
-      <div class="asp"></div>
-      <button class="ahb on" id="bZ" onclick="sendAR('zones')">🌡 Zones</button>
-      <button class="ahb on" id="bE" onclick="sendAR('elec')">⚡ Élém.</button>
-      <button class="ahb" onclick="setTab('place')">✕</button>
-    </div>
-    <div class="ar-st"><span class="sdt scan" id="stDot"></span><span id="stTxt">Chargement AR…</span></div>
-    <div class="ar-leg">
-      <div class="lr"><div class="ld" style="background:rgba(220,38,38,.8)"></div>Zone 0</div>
-      <div class="lr"><div class="ld" style="background:rgba(217,119,6,.75)"></div>Zone 1 ≤60cm H≤2,25m</div>
-      <div class="lr"><div class="ld" style="background:rgba(37,99,235,.7)"></div>Zone 2 ≤120cm H≤2,25m</div>
-      <div class="lr"><div class="ld" style="background:rgba(148,163,184,.5)"></div>Hors zone</div>
-    </div>
-    <div class="vp" id="volP"></div>
-    <div class="ar-bot">
-      <button class="ahb" onclick="setTab('place')">← Plan</button>
-      <button class="ahb" onclick="sendAR('rot')">↻ Rotation</button>
-      <button class="ahb" onclick="sendAR('bigger')">+ Grande</button>
-      <button class="ahb" onclick="sendAR('smaller')">− Petite</button>
-      <button class="ahb" onclick="printMarker()">🖨️ Marqueur</button>
-    </div>
-    <!-- Guide -->
-    <div class="ar-guide" id="arGuide">
-      <div class="ag-logo">Élec<span>Studio</span><br><span style="font-size:.85rem;color:rgba(255,255,255,.4);font-weight:400">Réalité Augmentée</span></div>
-      <div class="ag-mk"><canvas id="markerCv" width="130" height="130"></canvas></div>
-      <div class="ag-txt">
-        <b>1.</b> Imprimez ce marqueur<br>
-        <b>2.</b> Posez-le à plat au sol<br>
-        <b>3.</b> Pointez depuis 50–80 cm<br>
-        La scène se fixe et reste ancrée
-      </div>
-      <button class="ag-btn" onclick="printMarker()">🖨️ Imprimer le marqueur</button>
-      <button class="ag-btn2" onclick="document.getElementById('arGuide').classList.add('hide')">Scanner sans imprimer</button>
-    </div>
-  </div>
-</div>
-
-<!-- NORMES -->
-<div class="screen off" id="scrNorm">
-  <div class="nwrap" id="normWrap"></div>
-</div>
-
-</div><!-- content -->
-
-<div class="tabbar">
-  <button class="tabi on" data-t="draw"  onclick="setTab('draw')"><span class="tabi-ico">✏️</span><span class="tabi-lbl">TRACER</span></button>
-  <button class="tabi"    data-t="place" onclick="setTab('place')"><span class="tabi-ico">🔌</span><span class="tabi-lbl">PLACER</span></button>
-  <button class="tabi"    data-t="ar"    onclick="setTab('ar');initAR()"><span class="tabi-ico">📷</span><span class="tabi-lbl">RA LIVE</span></button>
-  <button class="tabi"    data-t="norm"  onclick="setTab('norm');renderNormes()"><span class="tabi-ico">📋</span><span class="tabi-lbl">NORMES</span></button>
-</div>
-</div>
-
-<div id="ghost" style="position:fixed;z-index:9999;pointer-events:none;display:none;font-size:1.8rem;width:36px;height:36px;background:#fff;border-radius:50%;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.2)"></div>
-
-<script>
-'use strict';
-// ═══════════════════════════════════════
-//  CATALOG
-// ═══════════════════════════════════════
-const CAT={
-  baignoire:{g:'san',ico:'🛁',label:'Baignoire',       w:1.70,d:.75,h3:.55,water:true, zR:{z1:.60,z2:1.20}},
-  douche_it:{g:'san',ico:'🚿',label:'Douche italienne',w:.90, d:.90,h3:.005,water:true,zR:{z1:.60,z2:1.20}},
-  lavabo:   {g:'san',ico:'🪣',label:'Lavabo',          w:.60, d:.50,h3:.85,water:true, zR:{z1:.40,z2:.60}},
-  wc:       {g:'san',ico:'🚽',label:'WC',              w:.38, d:.65,h3:.78,water:false},
-  dcl:      {g:'el',ico:'🔵',label:'DCL plafond',    zones:[0,1,2,'hors'],minH:2.20,ip:'IP44',classe:'II'},
-  spot:     {g:'el',ico:'💡',label:'Spot encastré',   zones:[0,1,2,'hors'],minH:2.00,ip:'IP44',classe:'II'},
-  applique: {g:'el',ico:'🔦',label:'Applique murale', zones:[2,'hors'],   minH:2.25,ip:'IP44',classe:'II'},
-  hublot:   {g:'el',ico:'⭕',label:'Hublot IP44',     zones:[1,2,'hors'], minH:2.00,ip:'IP44',classe:'II'},
-  prise:    {g:'el',ico:'🔌',label:'Prise 16A',       zones:['hors'],minDistW:120,minH:.95,maxH:1.30,ip:'IP21',classe:'II'},
-  interrupteur:{g:'el',ico:'🔆',label:'Interrupteur', zones:['hors'],minDistW:60,minH:.90,maxH:1.30,ip:'IP21',classe:'II'},
-  seche:    {g:'el',ico:'♨️',label:'Sèche-serviette', zones:[1,2],minH:.30,ip:'IP44',classe:'II'},
-  vmc:      {g:'el',ico:'🌀',label:'VMC',             zones:[0,1,2,'hors'],minH:2.20,ip:'IP45',classe:'II'},
-  tableau:  {g:'el',ico:'⚡',label:'Tableau élec.',   zones:['hors'],minDistW:120,ip:'IP21',classe:'II'},
-};
-
-const ST={
-  walls:[],curPoly:[],openings:[],elements:[],selectedId:null,idSeq:0,
-  gridM:.20,drawTool:'poly',sheetOpen:false,drawerOpen:false,
-  dScale:90,dPanX:30,dPanY:30,pScale:80,pPanX:30,pPanY:30,
-};
-
-// ─── ZONES ───
-function distToEdge(px,py){let m=Infinity;for(const el of ST.elements){const c=CAT[el.type];if(!c?.water)continue;const cx=Math.max(el.x-c.w/2,Math.min(el.x+c.w/2,px)),cy=Math.max(el.y-c.d/2,Math.min(el.y+c.d/2,py));m=Math.min(m,Math.hypot(px-cx,py-cy)*100);}return m;}
-function insideFix(px,py){for(const el of ST.elements){const c=CAT[el.type];if(!c?.water)continue;if(px>=el.x-c.w/2&&px<=el.x+c.w/2&&py>=el.y-c.d/2&&py<=el.y+c.d/2)return true;}return false;}
-function getZone(px,py,h=1){if(insideFix(px,py))return 0;const d=distToEdge(px,py);if(d<=60&&h<=2.25)return 1;if(d<=120&&h<=2.25)return 2;return'hors';}
-function calcVols(){
-  const H=parseFloat(document.getElementById('inH')?.value)||2.5,ZH=2.25;
-  let rA=0;if(ST.walls.length)for(const w of ST.walls)rA+=Math.abs(polyArea(w.pts));else rA=3*2.4;
-  let z0=0,z1=0,z2=0;
-  for(const el of ST.elements){const c=CAT[el.type];if(!c?.water||!c.zR)continue;const{z1:r1,z2:r2}=c.zR;z0+=c.w*c.d*(c.h3||.5);z1+=((c.w+2*r1)*(c.d+2*r1)-c.w*c.d)*ZH;z2+=((c.w+2*r2)*(c.d+2*r2)-(c.w+2*r1)*(c.d+2*r1))*ZH;}
-  return{roomVol:rA*H,z0,z1,z2,hors:Math.max(0,rA*H-z0-z1-z2)};
-}
-function polyArea(pts){let a=0;for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;a+=pts[i].x*pts[j].y-pts[j].x*pts[i].y;}return a/2;}
-
-// ─── NAV ───
-function setTab(t){
-  const m={draw:'scrDraw',place:'scrPlace',ar:'scrAR',norm:'scrNorm'};
-  Object.entries(m).forEach(([k,v])=>document.getElementById(v).classList.toggle('off',k!==t));
-  document.querySelectorAll('.tabi').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  if(t==='place'){setTimeout(()=>{initPlace();drawPlace();},40);}
-  if(t==='norm')renderNormes();
-}
-function newProj(){if((ST.elements.length||ST.walls.length)&&!confirm('Effacer et recommencer ?'))return;ST.walls=[];ST.curPoly=[];ST.openings=[];ST.elements=[];ST.selectedId=null;ST.idSeq=0;reDraw();setTab('draw');}
-
-// ─── DRAW ───
-let dcv,dctx,dWrap,dMouse={mx:0,my:0};
-function initDraw(){dWrap=document.getElementById('drawMain');dcv=document.getElementById('cvDraw');dctx=dcv.getContext('2d');resizeDraw();if(!ST.walls.length)ST.walls=[{pts:[{x:.2,y:.2},{x:3.2,y:.2},{x:3.2,y:2.6},{x:.2,y:2.6}],closed:true}];setupDrawEv();reDraw();}
-function resizeDraw(){if(!dWrap)return;dcv.width=dWrap.clientWidth;dcv.height=dWrap.clientHeight;}
-const DHINTS={poly:'Cliquez pour poser les coins. Double-clic ou retour au 1er point pour fermer.',rect:'Cliquez 2 coins opposés.',sel:'Glissez pour déplacer la vue.',open:'Cliquez sur un mur pour placer l\'ouverture.'};
-function setTool(t){ST.drawTool=t;document.querySelectorAll('.dtb').forEach(b=>b.classList.remove('on'));document.getElementById('t'+t).classList.add('on');document.getElementById('dhint').textContent=DHINTS[t]||'';}
-function toggleSheet(){ST.sheetOpen=!ST.sheetOpen;document.getElementById('drawSheet').classList.toggle('open',ST.sheetOpen);}
-function toggleDrawer(){ST.drawerOpen=!ST.drawerOpen;document.getElementById('elemDrawer').classList.toggle('open',ST.drawerOpen);}
-function mToS(mx,my,sc,px,py){return{sx:px+mx*sc,sy:py+my*sc};}
-function sToM(sx,sy,sc,px,py){return{mx:(sx-px)/sc,my:(sy-py)/sc};}
-function snapG(mx,my){const g=ST.gridM;return{mx:Math.round(mx/g)*g,my:Math.round(my/g)*g};}
-function setupDrawEv(){
-  let pan=false,ps={x:0,y:0},po={x:0,y:0};
-  function gp(cx,cy){const r=dcv.getBoundingClientRect();return snapG(...Object.values(sToM(cx-r.left,cy-r.top,ST.dScale,ST.dPanX,ST.dPanY)));}
-  dcv.addEventListener('mousemove',e=>{const p=gp(e.clientX,e.clientY);dMouse=p;const sp=mToS(p.mx,p.my,ST.dScale,ST.dPanX,ST.dPanY);const si=document.getElementById('snapInd');si.style.display='block';si.style.left=sp.sx+'px';si.style.top=sp.sy+'px';if(ST.drawTool==='poly'||ST.drawTool==='rect')reDraw();if(pan){ST.dPanX=po.x+(e.clientX-ps.x);ST.dPanY=po.y+(e.clientY-ps.y);reDraw();}});
-  dcv.addEventListener('mousedown',e=>{if(ST.drawTool==='sel'){pan=true;ps={x:e.clientX,y:e.clientY};po={x:ST.dPanX,y:ST.dPanY};}});
-  document.addEventListener('mouseup',()=>pan=false);
-  dcv.addEventListener('wheel',e=>{e.preventDefault();ST.dScale=Math.max(40,Math.min(400,ST.dScale*(e.deltaY<0?1.12:.9)));reDraw();},{passive:false});
-  dcv.addEventListener('click',e=>hdc(gp(e.clientX,e.clientY)));
-  dcv.addEventListener('dblclick',()=>{if(ST.drawTool==='poly'&&ST.curPoly.length>=3)closePoly();});
-  let t0=null,panT=false,pt0={x:0,y:0};
-  dcv.addEventListener('touchstart',e=>{e.preventDefault();if(e.touches.length===1){t0=e.touches[0];panT=(ST.drawTool==='sel');if(panT)pt0={x:ST.dPanX,y:ST.dPanY};}},{passive:false});
-  dcv.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1&&panT&&t0){ST.dPanX=pt0.x+(e.touches[0].clientX-t0.clientX);ST.dPanY=pt0.y+(e.touches[0].clientY-t0.clientY);reDraw();}},{passive:false});
-  dcv.addEventListener('touchend',e=>{e.preventDefault();if(e.changedTouches.length===1&&t0&&!panT){const tc=e.changedTouches[0];if(Math.hypot(tc.clientX-t0.clientX,tc.clientY-t0.clientY)<10)hdc(gp(tc.clientX,tc.clientY));}t0=null;panT=false;},{passive:false});
-}
-function hdc({mx,my}){
-  if(ST.drawTool==='poly'){const cp=ST.curPoly;if(cp.length>2&&Math.hypot(mx-cp[0].x,my-cp[0].y)<ST.gridM*1.6){closePoly();return;}cp.push({x:mx,y:my});reDraw();}
-  else if(ST.drawTool==='rect'){ST.curPoly.push({x:mx,y:my});if(ST.curPoly.length===2){const[a,b]=ST.curPoly;ST.walls.push({pts:[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}],closed:true});ST.curPoly=[];reDraw();}}
-  else if(ST.drawTool==='open')placeOpen(mx,my);
-}
-function closePoly(){if(ST.curPoly.length>=3)ST.walls.push({pts:[...ST.curPoly],closed:true});ST.curPoly=[];reDraw();}
-function placeOpen(mx,my){
-  let best=null,bestD=.25;
-  for(let wi=0;wi<ST.walls.length;wi++){const pts=ST.walls[wi].closed?[...ST.walls[wi].pts,ST.walls[wi].pts[0]]:ST.walls[wi].pts;for(let si=0;si<pts.length-1;si++){const{d,t}=ptSeg(mx,my,pts[si].x,pts[si].y,pts[si+1].x,pts[si+1].y);if(d<bestD){bestD=d;best={wi,si,t};}}}
-  if(!best)return;ST.openings.push({id:++ST.idSeq,type:document.getElementById('openT').value,wi:best.wi,si:best.si,t:best.t,w:parseFloat(document.getElementById('openW').value)||.8});reDraw();
-}
-function ptSeg(px,py,ax,ay,bx,by){const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;if(!l2)return{d:Math.hypot(px-ax,py-ay),t:0};const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));return{d:Math.hypot(px-ax-t*dx,py-ay-t*dy),t};}
-function undoPt(){if(ST.curPoly.length>0){ST.curPoly.pop();reDraw();}else if(ST.walls.length>0){ST.walls.pop();reDraw();}}
-function clrDraw(){if(confirm('Effacer ?')){ST.walls=[];ST.curPoly=[];ST.openings=[];reDraw();}}
-
-function reDraw(){
-  if(!dctx)return;
-  const W=dcv.width,H=dcv.height,ctx=dctx,sc=ST.dScale,px=ST.dPanX,py=ST.dPanY;
-  ctx.clearRect(0,0,W,H);ctx.fillStyle='#cdd5e0';ctx.fillRect(0,0,W,H);
-  dGrid(ctx,W,H,sc,px,py);
-  const mf=document.getElementById('matF')?.value||'antiderapant',mw=document.getElementById('matW')?.value||'carrelage';
-  for(const w of ST.walls)dWall(ctx,w,mf,mw,sc,px,py);
-  for(const o of ST.openings)dOpen(ctx,o,sc,px,py);
-  const cp=ST.curPoly;
-  if(cp.length>0){ctx.beginPath();const p0=mToS(cp[0].x,cp[0].y,sc,px,py);ctx.moveTo(p0.sx,p0.sy);for(let i=1;i<cp.length;i++){const p=mToS(cp[i].x,cp[i].y,sc,px,py);ctx.lineTo(p.sx,p.sy);}const pm=mToS(dMouse.mx,dMouse.my,sc,px,py);ctx.lineTo(pm.sx,pm.sy);ctx.strokeStyle='#2563eb';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);for(const pt of cp){const p=mToS(pt.x,pt.y,sc,px,py);ctx.beginPath();ctx.arc(p.sx,p.sy,5,0,Math.PI*2);ctx.fillStyle='#2563eb';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();}if(cp.length>2&&Math.hypot(dMouse.mx-cp[0].x,dMouse.my-cp[0].y)<ST.gridM*1.6){const p=mToS(cp[0].x,cp[0].y,sc,px,py);ctx.beginPath();ctx.arc(p.sx,p.sy,11,0,Math.PI*2);ctx.strokeStyle='#22c55e';ctx.lineWidth=2;ctx.stroke();}}
-  if(ST.drawTool==='rect'&&ST.curPoly.length===1){const a=ST.curPoly[0],b=dMouse;const p1=mToS(a.x,a.y,sc,px,py),p2=mToS(b.mx,b.my,sc,px,py);ctx.strokeStyle='#2563eb';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.strokeRect(Math.min(p1.sx,p2.sx),Math.min(p1.sy,p2.sy),Math.abs(p2.sx-p1.sx),Math.abs(p2.sy-p1.sy));ctx.setLineDash([]);}
-  for(const w of ST.walls)dDims(ctx,w,sc,px,py);
-}
-function dGrid(ctx,W,H,sc,px,py){const g=ST.gridM*sc,ox=((px%g)+g)%g,oy=((py%g)+g)%g;ctx.strokeStyle='rgba(100,120,160,.14)';ctx.lineWidth=.5;for(let x=ox;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let y=oy;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}const mg=sc,mox=((px%mg)+mg)%mg,moy=((py%mg)+mg)%mg;ctx.strokeStyle='rgba(100,120,160,.28)';ctx.lineWidth=.8;for(let x=mox;x<W;x+=mg){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let y=moy;y<H;y+=mg){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}}
-function dWall(ctx,w,mf,mw,sc,px,py){if(!w.pts||w.pts.length<2)return;const T=Math.max(8,sc*.07);const matF={carrelage:'#d8e8f0',antiderapant:'#d0c8b0',resine:'#d8d4cc'};const matW={carrelage:'#7080a0',beton:'#687078',peinture:'#808898'};const p0=mToS(w.pts[0].x,w.pts[0].y,sc,px,py);ctx.save();ctx.beginPath();ctx.moveTo(p0.sx,p0.sy);for(let i=1;i<w.pts.length;i++){const p=mToS(w.pts[i].x,w.pts[i].y,sc,px,py);ctx.lineTo(p.sx,p.sy);}if(w.closed)ctx.closePath();if(w.closed){ctx.fillStyle=matF[mf]||'#d8e8f0';ctx.fill();if(mf==='carrelage'||mf==='antiderapant'){ctx.save();ctx.clip();ctx.strokeStyle='rgba(130,155,180,.22)';ctx.lineWidth=.5;const ts=sc*.4,bb=getBbox(w.pts);const x0=mToS(bb[0],bb[2],sc,px,py),x1=mToS(bb[1],bb[3],sc,px,py);for(let x=x0.sx;x<=x1.sx;x+=ts){ctx.beginPath();ctx.moveTo(x,x0.sy);ctx.lineTo(x,x1.sy);ctx.stroke();}for(let y=x0.sy;y<=x1.sy;y+=ts){ctx.beginPath();ctx.moveTo(x0.sx,y);ctx.lineTo(x1.sx,y);ctx.stroke();}ctx.restore();}}ctx.strokeStyle=matW[mw]||'#7080a0';ctx.lineWidth=T;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=2;ctx.stroke();ctx.restore();}
-function dOpen(ctx,op,sc,px,py){const w=ST.walls[op.wi];if(!w)return;const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;if(op.si>=pts.length-1)return;const a=pts[op.si],b=pts[op.si+1],sl=Math.hypot(b.x-a.x,b.y-a.y),hw=op.w/2/sl;const t1=Math.max(0,op.t-hw),t2=Math.min(1,op.t+hw);const p1=mToS(a.x+(b.x-a.x)*t1,a.y+(b.y-a.y)*t1,sc,px,py),p2=mToS(a.x+(b.x-a.x)*t2,a.y+(b.y-a.y)*t2,sc,px,py);const T=Math.max(8,sc*.07)+2;ctx.strokeStyle='#cdd5e0';ctx.lineWidth=T;ctx.beginPath();ctx.moveTo(p1.sx,p1.sy);ctx.lineTo(p2.sx,p2.sy);ctx.stroke();ctx.strokeStyle=op.type==='door'?'#3b82f6':'#0ea5e9';ctx.lineWidth=2;ctx.stroke();ctx.font='11px serif';ctx.textAlign='center';ctx.fillText(op.type==='door'?'🚪':'🪟',(p1.sx+p2.sx)/2,(p1.sy+p2.sy)/2);}
-function dDims(ctx,w,sc,px,py){if(!w.pts||w.pts.length<2)return;ctx.font=`9px 'JetBrains Mono',monospace`;ctx.textAlign='center';const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],len=Math.hypot(b.x-a.x,b.y-a.y);if(len<.15)continue;const m=mToS((a.x+b.x)/2,(a.y+b.y)/2,sc,px,py);ctx.save();ctx.translate(m.sx,m.sy);ctx.rotate(Math.atan2(b.y-a.y,b.x-a.x));ctx.fillStyle='rgba(80,95,135,.85)';ctx.fillText(len.toFixed(2)+'m',0,-6);ctx.restore();}}
-function getBbox(pts){let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;for(const p of pts){mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);}return[mnx,mxx,mny,mxy];}
-
-// ─── PLACE ───
-let pcv,pctx;
-function initPlace(){const wrap=document.getElementById('placeMain');pcv=document.getElementById('cvPlace');pctx=pcv.getContext('2d');pcv.width=wrap.clientWidth;pcv.height=wrap.clientHeight;fitPlace();setupPlaceEv();setupDrag();}
-function fitPlace(){if(!pcv)return;let mnx=0,mxx=3,mny=0,mxy=2.4;if(ST.walls.length)for(const w of ST.walls)for(const p of w.pts){mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);}const m=.4,rW=mxx-mnx+m*2,rH=mxy-mny+m*2;ST.pScale=Math.floor(Math.min(pcv.width/rW,pcv.height/rH,160));ST.pPanX=pcv.width/2-(mnx+(mxx-mnx)/2)*ST.pScale;ST.pPanY=pcv.height/2-(mny+(mxy-mny)/2)*ST.pScale;}
-function pz(f){ST.pScale=Math.max(30,Math.min(300,Math.round(ST.pScale*f)));drawPlace();document.getElementById('zlbl').textContent=Math.round(ST.pScale/80*100)+'%';}
-function pzR(){fitPlace();drawPlace();}
-function drawPlace(){
-  if(!pctx||!pcv)return;
-  const ctx=pctx,W=pcv.width,H=pcv.height,sc=ST.pScale,px=ST.pPanX,py=ST.pPanY;
-  ctx.clearRect(0,0,W,H);ctx.fillStyle='#cdd5e0';ctx.fillRect(0,0,W,H);
-  dGrid(ctx,W,H,sc,px,py);
-  const mf=document.getElementById('matF')?.value||'antiderapant',mw=document.getElementById('matW')?.value||'carrelage';
-  for(const w of ST.walls)dWall(ctx,w,mf,mw,sc,px,py);
-  for(const o of ST.openings)dOpen(ctx,o,sc,px,py);
-  for(const el of ST.elements){const c=CAT[el.type];if(!c?.water||!c.zR)continue;const{z1:r1,z2:r2}=c.zR;[[r2,'rgba(37,99,235,.07)','rgba(37,99,235,.28)','Z2'],[r1,'rgba(217,119,6,.10)','rgba(217,119,6,.38)','Z1'],[0,'rgba(220,38,38,.13)','rgba(220,38,38,.5)','Z0']].forEach(([r,f,s,lbl])=>{const x1=(el.x-c.w/2-r)*sc+px,y1=(el.y-c.d/2-r)*sc+py,w=(c.w+2*r)*sc,h=(c.d+2*r)*sc;ctx.fillStyle=f;ctx.fillRect(x1,y1,w,h);ctx.strokeStyle=s;ctx.lineWidth=r===0?1.2:1;ctx.setLineDash(r===0?[]:[4,3]);ctx.strokeRect(x1,y1,w,h);ctx.setLineDash([]);ctx.fillStyle=s;ctx.font='bold 8px JetBrains Mono,monospace';ctx.textAlign='left';ctx.fillText(lbl,x1+3,y1+10);});}
-  for(const el of ST.elements)if(CAT[el.type]?.g==='san')dSan(ctx,el,sc,px,py);
-  for(const el of ST.elements)if(CAT[el.type]?.g==='el')dEl(ctx,el,sc,px,py);
-}
-function dSan(ctx,el,sc,px,py){const c=CAT[el.type];const x=(el.x-c.w/2)*sc+px,y=(el.y-c.d/2)*sc+py,w=c.w*sc,h=c.d*sc;const sel=el.id===ST.selectedId;ctx.save();if(sel){ctx.shadowColor='rgba(37,99,235,.5)';ctx.shadowBlur=10;}
-  switch(el.type){
-    case'baignoire':ctx.fillStyle='#b8c8d8';rr(ctx,x,y,w,h,7);ctx.fill();ctx.fillStyle='#d8ecf8';rr(ctx,x+w*.08,y+h*.08,w*.84,h*.84,5);ctx.fill();ctx.fillStyle='rgba(80,160,210,.25)';rr(ctx,x+w*.1,y+h*.1,w*.8,h*.8,4);ctx.fill();ctx.strokeStyle='#7090a8';ctx.lineWidth=1.8;rr(ctx,x,y,w,h,7);ctx.stroke();break;
-    case'douche_it':ctx.fillStyle='#a8c8d8';rr(ctx,x,y,w,h,4);ctx.fill();ctx.strokeStyle='rgba(70,130,155,.35)';ctx.lineWidth=.5;const gs=w/5;for(let i=1;i<5;i++){ctx.beginPath();ctx.moveTo(x+gs*i,y);ctx.lineTo(x+gs*i,y+h);ctx.stroke();}for(let j=1;j<Math.ceil(h/gs);j++){ctx.beginPath();ctx.moveTo(x,y+gs*j);ctx.lineTo(x+w,y+gs*j);ctx.stroke();}ctx.strokeStyle='#6898a8';ctx.lineWidth=1.8;rr(ctx,x,y,w,h,4);ctx.stroke();break;
-    case'lavabo':ctx.fillStyle='#c0d8ec';rr(ctx,x,y,w,h,h*.4);ctx.fill();ctx.fillStyle='#e0f0fc';ctx.strokeStyle='#7898b0';ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(x+w/2,y+h*.55,w*.36,h*.33,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.strokeStyle='#7090a8';ctx.lineWidth=1.8;rr(ctx,x,y,w,h,h*.4);ctx.stroke();break;
-    case'wc':ctx.fillStyle='#c8ccd8';rr(ctx,x+w*.05,y,w*.9,h*.32,3);ctx.fill();ctx.strokeStyle='#7880a0';ctx.lineWidth=1.5;rr(ctx,x+w*.05,y,w*.9,h*.32,3);ctx.stroke();ctx.fillStyle='#d4d8e8';ctx.beginPath();ctx.moveTo(x+w*.1,y+h*.32);ctx.lineTo(x+w*.9,y+h*.32);ctx.quadraticCurveTo(x+w,y+h*.55,x+w*.9,y+h);ctx.lineTo(x+w*.1,y+h);ctx.quadraticCurveTo(x,y+h*.55,x+w*.1,y+h*.32);ctx.closePath();ctx.fill();ctx.strokeStyle='#7880a0';ctx.lineWidth=1.5;ctx.stroke();break;
-  }
-  if(sel){ctx.shadowBlur=0;ctx.strokeStyle='#2563eb';ctx.lineWidth=2.5;ctx.strokeRect(x-3,y-3,w+6,h+6);}ctx.restore();}
-function dEl(ctx,el,sc,px,py){const c=CAT[el.type];if(!c)return;const{errs}=chkEl(el),sp=mToS(el.x,el.y,sc,px,py);const col=errs.length?'#dc2626':'#059669',sel=el.id===ST.selectedId;const R=Math.max(11,sc*.12);if(sel){ctx.beginPath();ctx.arc(sp.sx,sp.sy,R+5,0,Math.PI*2);ctx.fillStyle='rgba(37,99,235,.18)';ctx.fill();}ctx.beginPath();ctx.arc(sp.sx,sp.sy,R,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=col;ctx.lineWidth=sel?2.8:2;ctx.stroke();ctx.font=`${Math.max(9,R*.85)}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(c.ico,sp.sx,sp.sy);ctx.textBaseline='alphabetic';ctx.font='bold 8px JetBrains Mono,monospace';ctx.fillStyle=col;ctx.textAlign='center';ctx.fillText((el.heightM||1).toFixed(1)+'m',sp.sx,sp.sy+R+9);ctx.beginPath();ctx.arc(sp.sx+R*.7,sp.sy-R*.7,3.5,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();}
-function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
-function setupPlaceEv(){const wrap=document.getElementById('placeMain');let pan=false,ps={x:0,y:0},po={x:0,y:0};wrap.addEventListener('wheel',e=>{e.preventDefault();pz(e.deltaY<0?1.12:.9);},{passive:false});wrap.addEventListener('mousedown',e=>{const r=pcv.getBoundingClientRect();const p=sToM(e.clientX-r.left,e.clientY-r.top,ST.pScale,ST.pPanX,ST.pPanY);const hit=hitEl(p.mx,p.my);if(hit){selEl(hit.id);startEDrag(e,hit.id);}else{pan=true;ps={x:e.clientX,y:e.clientY};po={x:ST.pPanX,y:ST.pPanY};selEl(null);}});document.addEventListener('mousemove',e=>{if(pan){ST.pPanX=po.x+(e.clientX-ps.x);ST.pPanY=po.y+(e.clientY-ps.y);drawPlace();}});document.addEventListener('mouseup',()=>pan=false);let ta=[];wrap.addEventListener('touchstart',e=>{ta=Array.from(e.touches);},{passive:true});wrap.addEventListener('touchmove',e=>{e.preventDefault();const ts=Array.from(e.touches);if(ts.length===2&&ta.length===2){const d0=Math.hypot(ta[1].clientX-ta[0].clientX,ta[1].clientY-ta[0].clientY),d1=Math.hypot(ts[1].clientX-ts[0].clientX,ts[1].clientY-ts[0].clientY);if(d0>0)ST.pScale=Math.max(30,Math.min(300,ST.pScale*d1/d0));}else if(ts.length===1&&ta.length===1){ST.pPanX+=ts[0].clientX-ta[0].clientX;ST.pPanY+=ts[0].clientY-ta[0].clientY;}ta=ts;drawPlace();},{passive:false});wrap.addEventListener('touchend',e=>{if(e.changedTouches.length===1&&ta.length<=1){const t=e.changedTouches[0],r=wrap.getBoundingClientRect();const p=sToM(t.clientX-r.left,t.clientY-r.top,ST.pScale,ST.pPanX,ST.pPanY);const hit=hitEl(p.mx,p.my);if(hit)selEl(hit.id);else selEl(null);}ta=[];},{passive:true});}
-function hitEl(mx,my){for(let i=ST.elements.length-1;i>=0;i--){const el=ST.elements[i],c=CAT[el.type];const R=c?.g==='san'?Math.max(c.w,c.d)/2:.3;if(Math.hypot(mx-el.x,my-el.y)<R)return el;}return null;}
-function startEDrag(e,id){e.stopPropagation();const el=ST.elements.find(x=>x.id===id),ox=el.x,oy=el.y,sx=e.clientX,sy=e.clientY;function mm(ev){el.x=ox+(ev.clientX-sx)/ST.pScale;el.y=oy+(ev.clientY-sy)/ST.pScale;updEl(el);drawPlace();updProp(id);}function mu(){document.removeEventListener('mousemove',mm);document.removeEventListener('mouseup',mu);}document.addEventListener('mousemove',mm);document.addEventListener('mouseup',mu);}
-function setupDrag(){
-  document.querySelectorAll('.ec').forEach(item=>{
-    item.setAttribute('draggable','true');item.addEventListener('dragstart',e=>e.dataTransfer.setData('type',item.dataset.type));
-    item.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0],g=document.getElementById('ghost');g.textContent=CAT[item.dataset.type]?.ico||'?';g.style.display='flex';g.style.left=(t.clientX-18)+'px';g.style.top=(t.clientY-18)+'px';const type=item.dataset.type;function tm(ev){ev.preventDefault();const tc=ev.changedTouches[0];g.style.left=(tc.clientX-18)+'px';g.style.top=(tc.clientY-18)+'px';}function te(ev){ev.preventDefault();g.style.display='none';const tc=ev.changedTouches[0],wr=document.getElementById('placeMain').getBoundingClientRect();if(tc.clientX>=wr.left&&tc.clientX<=wr.right&&tc.clientY>=wr.top&&tc.clientY<=wr.bottom){const p=sToM(tc.clientX-wr.left,tc.clientY-wr.top,ST.pScale,ST.pPanX,ST.pPanY);addEl(type,p.mx,p.my);}document.removeEventListener('touchmove',tm);document.removeEventListener('touchend',te);}document.addEventListener('touchmove',tm,{passive:false});document.addEventListener('touchend',te,{passive:false});},{passive:false});
-  });
-  const wrap=document.getElementById('placeMain');wrap.addEventListener('dragover',e=>e.preventDefault());wrap.addEventListener('drop',e=>{e.preventDefault();const t=e.dataTransfer.getData('type');if(!t)return;const r=wrap.getBoundingClientRect();const p=sToM(e.clientX-r.left,e.clientY-r.top,ST.pScale,ST.pPanX,ST.pPanY);addEl(t,p.mx,p.my);});
-}
-function addEl(type,mx,my){const id=++ST.idSeq;const el={id,type,x:mx,y:my,heightM:{prise:1.05,interrupteur:1.10,dcl:2.45,spot:2.45,applique:2.30,hublot:2.10,seche:1.20,vmc:2.45,tableau:1.50}[type]??1.0,ip:CAT[type]?.ip||'IP21',classe:CAT[type]?.classe||'II',cable:'mur'};updEl(el);ST.elements.push(el);selEl(id);drawPlace();}
-function updEl(el){if(CAT[el.type]?.g!=='el')return;el.distCm=distToEdge(el.x,el.y);el.zone=getZone(el.x,el.y,el.heightM||1);}
-function selEl(id){ST.selectedId=id;drawPlace();const ps=document.getElementById('propSheet');if(!id||CAT[ST.elements.find(e=>e.id===id)?.type]?.g!=='el'){ps.classList.remove('open');return;}ps.classList.add('open');updProp(id);}
-function closeProp(){ST.selectedId=null;document.getElementById('propSheet').classList.remove('open');drawPlace();}
-function updProp(id){
-  const el=ST.elements.find(e=>e.id===id);if(!el)return;
-  const c=CAT[el.type],{errs,warns}=chkEl(el),st=errs.length?'er':warns.length?'wn':'ok';
-  const zL=el.zone==='hors'?'Hors zone':el.zone!=null?'Zone '+el.zone:'—';
-  document.getElementById('psTitle').textContent=c.ico+' '+c.label;
-  document.getElementById('psContent').innerHTML=`
-    <div class="pf"><label>Hauteur (m)</label><input type="number" value="${(el.heightM||1).toFixed(2)}" step="0.05" min="0" max="4" onchange="sP(${id},'heightM',+this.value)"></div>
-    <div class="pf"><label>Indice IP</label><select onchange="sP(${id},'ip',this.value)">${['IP21','IP44','IP55','IP65'].map(v=>`<option${el.ip===v?' selected':''}>${v}</option>`).join('')}</select></div>
-    <div class="pf"><label>Classe isolation</label><select onchange="sP(${id},'classe',this.value)">${['I','II','III'].map(v=>`<option${el.classe===v?' selected':''}>${v}</option>`).join('')}</select></div>
-    <div class="pf"><label>Sortie câble</label><select onchange="sP(${id},'cable',this.value)">${['mur','sol','plafond','gaine'].map(v=>`<option${el.cable===v?' selected':''}>${v}</option>`).join('')}</select></div>
-    <div style="font-size:.63rem;color:var(--mid);margin:4px 0;line-height:1.6">Zone : <b>${zL}</b> · Dist. bord : <b>${el.distCm===Infinity?'—':Math.round(el.distCm)+' cm'}</b></div>
-    <div class="stch ${st}">${st==='ok'?'✅ Conforme':st==='wn'?`⚠️ ${warns[0]||''}`:`❌ ${errs[0]||''}`}</div>
-    ${errs.slice(1).map(e=>`<div class="stch er">❌ ${e}</div>`).join('')}
-    <button class="del-b" onclick="delEl(${id})">🗑 Supprimer</button>`;
-}
-function sP(id,k,v){const el=ST.elements.find(e=>e.id===id);if(!el)return;el[k]=v;updEl(el);drawPlace();updProp(id);}
-function delEl(id){ST.elements=ST.elements.filter(e=>e.id!==id);closeProp();drawPlace();}
-function chkEl(el){
-  const c=CAT[el.type];if(c?.g!=='el')return{errs:[],warns:[]};
-  const errs=[],warns=[],zone=el.zone,h=el.heightM,d=el.distCm;
-  if(c.zones&&!c.zones.includes(zone))errs.push(`Zone non autorisée (OK: ${c.zones.map(z=>z==='hors'?'hors-zone':'Zone '+z).join(', ')})`);
-  if(c.minDistW&&d<c.minDistW)errs.push(`Trop proche du bord: ${Math.round(d)}cm (min ${c.minDistW}cm)`);
-  if(c.minH&&h<c.minH){if(el.type==='vmc')warns.push(`H recommandée >${c.minH}m`);else errs.push(`Trop bas: ${h.toFixed(2)}m`);}
-  if(c.maxH&&h>c.maxH)warns.push(`H élevée: ${h.toFixed(2)}m`);
-  const ipN=v=>parseInt(v.replace('IP',''))||0;
-  if(ipN(el.ip||'IP21')<ipN((zone===1||zone===2)?'IP44':'IP21'))errs.push(`IP insuffisant: ${el.ip}`);
-  if((zone===1||zone===2)&&el.classe==='I')errs.push('Classe I interdit en zone humide');
-  if(el.type==='tableau')warns.push('Tableau déconseillé dans la SDB');
-  return{errs,warns};
-}
-
-// ═══════════════════════════════════════
-//  AR — IFRAME ISOLÉE
-//  A-Frame est chargé DANS l'iframe uniquement
-//  → pas d'interférence avec le DOM principal
-// ═══════════════════════════════════════
-let arIframe = null;
-let arVisible = {zones:true, elec:true};
-
-function initAR(){
-  if(arIframe) return; // déjà initialisé
-  drawMarkerCanvas('markerCv');
-  setSt('scan','Génération de la scène AR…');
-  updateVolPanel();
-
-  // Construire le HTML complet de l'iframe avec A-Frame intégré
-  const sceneData = buildSceneData();
-  const iframeHTML = buildARIframeHTML(sceneData);
-
-  // Créer le blob URL pour l'iframe (même origine = accès caméra autorisé)
-  const blob = new Blob([iframeHTML], {type:'text/html'});
-  const url = URL.createObjectURL(blob);
-
-  arIframe = document.createElement('iframe');
-  arIframe.src = url;
-  arIframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;z-index:1';
-  arIframe.allow = 'camera';
-  document.getElementById('arIframeWrap').appendChild(arIframe);
-
-  // Écouter les messages de l'iframe
-  window.addEventListener('message', e => {
-    if(e.data?.type === 'arStatus') setSt(e.data.st, e.data.txt);
-    if(e.data?.type === 'markerFound') {
-      setSt('go','✓ Marqueur détecté · Scène ancrée au sol');
-      document.getElementById('arGuide').classList.add('hide');
-    }
-    if(e.data?.type === 'markerLost') setSt('rdy','Repositionnez le marqueur dans la vue');
-  });
-
-  setTimeout(()=>setSt('rdy','Pointez vers le marqueur Hiro posé au sol'), 2000);
-}
-
-// Envoyer des commandes à l'iframe
-function sendAR(cmd){
-  if(!arIframe?.contentWindow) return;
-  arIframe.contentWindow.postMessage({cmd}, '*');
-  if(cmd==='zones'){arVisible.zones=!arVisible.zones;document.getElementById('bZ').classList.toggle('on',arVisible.zones);}
-  if(cmd==='elec'){arVisible.elec=!arVisible.elec;document.getElementById('bE').classList.toggle('on',arVisible.elec);}
-}
-
-function buildSceneData(){
-  const RH=parseFloat(document.getElementById('inH')?.value)||2.5;
-  const mf=document.getElementById('matF')?.value||'antiderapant';
-  const mw=document.getElementById('matW')?.value||'carrelage';
-  let mnx=0,mxx=3,mny=0,mxy=2.4;
-  if(ST.walls.length)for(const w of ST.walls)for(const p of w.pts){mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);}
-  return {
-    RH,mf,mw,mnx,mxx,mny,mxy,
-    elements: ST.elements.map(el=>({...el,errs:chkEl(el).errs,warns:chkEl(el).warns}))
-  };
-}
-
-function buildARIframeHTML(d){
-  const{RH,mf,mw,mnx,mxx,mny,mxy}=d;
-  const ZH=2.25;
-  const cx=(mnx+mxx)/2, cz=-((mny+mxy)/2);
-  const rW=mxx-mnx, rD=mxy-mny;
-  const floorCol={carrelage:'#b8c8d8',antiderapant:'#a09070',resine:'#b0aca4'}[mf]||'#aaa';
-  const wallCol={carrelage:'rgba(220,235,250,0.22)',beton:'rgba(205,212,220,0.22)',peinture:'rgba(242,238,228,0.22)'}[mw]||'rgba(220,232,245,0.22)';
-
-  // Générer le marqueur Hiro en data URL
-  const markerURL = genMarkerURL();
-
-  let ents='';
-
-  // Sol
-  ents+=`<a-plane position="${cx} 0.001 ${cz}" rotation="-90 0 0" width="${rW}" height="${rD}" color="${floorCol}" opacity="0.88"></a-plane>`;
-  // Grille sol
-  if(mf==='carrelage'||mf==='antiderapant'){
-    for(let x=mnx;x<=mxx;x+=.4)ents+=`<a-box position="${x} 0.003 ${cz}" width="0.005" height="0.002" depth="${rD}" color="#6080a0" opacity="0.18"></a-box>`;
-    for(let z=mny;z<=mxy;z+=.4)ents+=`<a-box position="${cx} 0.003 ${-z}" width="${rW}" height="0.002" depth="0.005" color="#6080a0" opacity="0.18"></a-box>`;
-  }
-  // Murs
-  ents+=`<a-box position="${cx} ${RH/2} ${-mny+.02}" width="${rW}" height="${RH}" depth="0.04" color="#ddeaf5" opacity="0.2"></a-box>`;
-  ents+=`<a-box position="${cx} ${RH/2} ${-mxy-.02}" width="${rW}" height="${RH}" depth="0.04" color="#ddeaf5" opacity="0.2"></a-box>`;
-  ents+=`<a-box position="${mnx-.02} ${RH/2} ${cz}" width="0.04" height="${RH}" depth="${rD}" color="#ddeaf5" opacity="0.2"></a-box>`;
-  ents+=`<a-box position="${mxx+.02} ${RH/2} ${cz}" width="0.04" height="${RH}" depth="${rD}" color="#ddeaf5" opacity="0.2"></a-box>`;
-
-  // Sanitaires
-  for(const el of d.elements){
-    const c=CAT[el.type];if(!c?.water)continue;
-    const h=c.h3||.5;
-    const col={baignoire:'#8fb8d0',douche_it:'#78b0c8',lavabo:'#a0c8e0',wc:'#b0b4c0'}[el.type]||'#aaa';
-    ents+=`<a-box position="${el.x} ${h/2} ${-el.y}" width="${c.w}" height="${h}" depth="${c.d}" color="${col}" opacity="0.92"></a-box>`;
-    if(el.type==='baignoire')ents+=`<a-plane position="${el.x} ${h*.45+.005} ${-el.y}" rotation="-90 0 0" width="${c.w*.8}" height="${c.d*.8}" color="#60b4e0" opacity="0.4"></a-plane>`;
-    if(el.type==='douche_it')ents+=`<a-plane position="${el.x} .008 ${-el.y}" rotation="-90 0 0" width="${c.w}" height="${c.d}" color="#70c0d8" opacity="0.45"></a-plane>`;
-  }
-
-  // ZONES NF C 15-100 — boîtes rectangulaires avec hauteur H=2,25m
-  for(const el of d.elements){
-    const c=CAT[el.type];if(!c?.water||!c.zR)continue;
-    const{z1:r1,z2:r2}=c.zR;
-    const z2w=c.w+2*r2,z2d=c.d+2*r2,z1w=c.w+2*r1,z1d=c.d+2*r1;
-    // Zone 2 bleue
-    ents+=`<a-box id="z2e${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z2w}" height="${ZH}" depth="${z2d}" color="#2563eb" opacity="0.055" side="double"></a-box>`;
-    ents+=`<a-box id="z2w${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z2w+.01}" height="${ZH}" depth="${z2d+.01}" color="#3b82f6" opacity="0.25" wireframe="true"></a-box>`;
-    // Zone 1 orange
-    ents+=`<a-box id="z1e${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z1w}" height="${ZH}" depth="${z1d}" color="#d97706" opacity="0.075" side="double"></a-box>`;
-    ents+=`<a-box id="z1w${el.id}" position="${el.x} ${ZH/2} ${-el.y}" width="${z1w+.01}" height="${ZH}" depth="${z1d+.01}" color="#f59e0b" opacity="0.3" wireframe="true"></a-box>`;
-    // Zone 0 rouge
-    ents+=`<a-box id="z0e${el.id}" position="${el.x} ${(c.h3||.5)/2} ${-el.y}" width="${c.w}" height="${c.h3||.5}" depth="${c.d}" color="#dc2626" opacity="0.12" side="double"></a-box>`;
-    // Plafond H=2,25m
-    ents+=`<a-plane id="zh${el.id}" position="${el.x} ${ZH} ${-el.y}" rotation="-90 0 0" width="${z1w}" height="${z1d}" color="#f59e0b" opacity="0.12"></a-plane>`;
-    // Labels
-    ents+=`<a-text id="lz2${el.id}" value="Zone 2" position="${el.x} ${ZH*.65} ${-(el.y-z2d/2-.08)}" color="#60a5fa" width="1.8" align="center"></a-text>`;
-    ents+=`<a-text id="lz1${el.id}" value="Zone 1" position="${el.x} ${ZH*.45} ${-(el.y-z1d/2-.08)}" color="#fbbf24" width="1.8" align="center"></a-text>`;
-    ents+=`<a-text id="lzh${el.id}" value="H = 2,25 m" position="${el.x} ${ZH+.15} ${-(el.y)}" color="#fcd34d" width="1.8" align="center"></a-text>`;
-  }
-
-  // Éléments électriques
-  for(const el of d.elements){
-    const c=CAT[el.type];if(c?.g!=='el')continue;
-    const col=el.errs.length?'#f87171':el.warns.length?'#fbbf24':'#34d399';
-    const h=el.heightM||1;
-    ents+=`<a-cylinder id="el${el.id}" position="${el.x} ${h} ${-el.y}" radius="0.08" height="0.04" color="${col}" opacity="0.9"></a-cylinder>`;
-    ents+=`<a-cylinder id="eg${el.id}" position="${el.x} ${h/2} ${-el.y}" radius="0.007" height="${h}" color="${col}" opacity="0.35"></a-cylinder>`;
-    ents+=`<a-text id="et${el.id}" value="${c.label}\\n${h.toFixed(2)}m" position="${el.x} ${h+.18} ${-el.y}" color="${col}" width="2" align="center" baseline="bottom"></a-text>`;
-    if(el.errs.length)ents+=`<a-ring id="er${el.id}" position="${el.x} ${h} ${-el.y}" radius-inner="0.09" radius-outer="0.13" color="#f87171" opacity="0.75" animation="property:rotation;to:0 360 0;loop:true;dur:2500;easing:linear"></a-ring>`;
-  }
-
-  return `<!DOCTYPE html>
-<html><head>
-<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://aframe.io/releases/1.4.0/aframe.min.js"><\/script>
-<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"><\/script>
-<style>body{margin:0;overflow:hidden}a-scene{width:100vw;height:100vh}</style>
+<title>AR Test · Cube au sol</title>
 </head>
-<body>
-<a-scene
-  arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;trackingMethod:best;"
-  renderer="logarithmicDepthBuffer:true;antialias:true;alpha:true;"
-  vr-mode-ui="enabled:false"
-  loading-screen="enabled:false">
+<body style="margin:0;background:#000;font-family:sans-serif">
 
-  <a-assets>
-    <img id="hiroImg" src="${markerURL}">
-  </a-assets>
+<!-- UI par-dessus la RA -->
+<div id="ui" style="position:fixed;top:0;left:0;right:0;z-index:999;pointer-events:none">
+  <div style="background:rgba(0,0,0,.6);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px">
+    <strong style="font-size:.9rem">AR Test · v1.0</strong>
+    <span id="status" style="font-size:.75rem;color:#fbbf24">Chargement…</span>
+  </div>
+  <div style="text-align:center;margin-top:8px">
+    <div id="reticle" style="display:inline-block;width:50px;height:50px;border:2px solid rgba(255,255,255,.6);border-radius:50%;position:relative;top:calc(50vh - 80px)">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.7);font-size:1.2rem">+</div>
+    </div>
+  </div>
+</div>
 
-  <a-marker
-    id="hiroMarker"
-    type="pattern"
-    url="${markerURL}"
-    emitevents="true">
-    <a-entity id="arRoot" rotation="0 0 0" scale="1 1 1">
-      ${ents}
-    </a-entity>
-  </a-marker>
+<div id="hint" style="position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:.78rem;z-index:999;text-align:center;white-space:nowrap">
+  Pointez vers une surface et tapez pour poser le cube
+</div>
 
-  <a-entity camera></a-entity>
-</a-scene>
+<button id="placeBtn" onclick="placeObject()" style="position:fixed;bottom:30px;left:50%;transform:translateX(-50%);padding:14px 40px;border-radius:30px;background:#2563eb;color:#fff;border:none;font-size:1rem;font-weight:700;z-index:999;box-shadow:0 4px 20px rgba(37,99,235,.5);display:none">
+  📍 Poser le cube ici
+</button>
+
+<button id="resetBtn" onclick="resetObject()" style="position:fixed;bottom:30px;right:16px;padding:10px 18px;border-radius:20px;background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.78rem;font-weight:700;z-index:999;display:none">
+  ↺ Réinitialiser
+</button>
 
 <script>
-// Communiquer avec la page parente
-window.parent.postMessage({type:'arStatus',st:'rdy',txt:'AR.js chargé'},'*');
-document.addEventListener('DOMContentLoaded',()=>{
-  const marker=document.getElementById('hiroMarker');
-  if(marker){
-    marker.addEventListener('markerFound',()=>window.parent.postMessage({type:'markerFound'},'*'));
-    marker.addEventListener('markerLost',()=>window.parent.postMessage({type:'markerLost'},'*'));
+// ═══════════════════════════
+//  WebXR Hit-Test AR
+//  Mode le plus simple :
+//  1. Demande session AR
+//  2. Hit-test sur le sol
+//  3. Tap = pose un cube
+// ═══════════════════════════
+
+let xrSession = null;
+let xrRefSpace = null;
+let hitTestSource = null;
+let gl = null;
+let canvas = null;
+
+// Objet 3D posé
+let placed = false;
+let placedMatrix = null;
+
+// Rotation de l'objet pour le rendu
+let objectRotY = 0;
+
+function setStatus(txt, col='#fbbf24') {
+  const s = document.getElementById('status');
+  s.textContent = txt;
+  s.style.color = col;
+}
+
+async function startAR() {
+  // Vérif support
+  if (!navigator.xr) {
+    setStatus('WebXR non supporté sur cet appareil', '#f87171');
+    document.getElementById('hint').textContent = '❌ WebXR non disponible. Essayez Chrome Android ou Safari iOS 17+';
+    return;
   }
-});
-// Recevoir les commandes du parent
-let rotY=0,scale=1,zonesOn=true,elecOn=true;
-window.addEventListener('message',e=>{
-  const cmd=e.data?.cmd;
-  const root=document.getElementById('arRoot');
-  if(!root)return;
-  if(cmd==='rot'){rotY+=15;root.setAttribute('rotation',\`0 \${rotY} 0\`);}
-  if(cmd==='bigger'){scale=Math.min(2,scale+.1);root.setAttribute('scale',\`\${scale} \${scale} \${scale}\`);}
-  if(cmd==='smaller'){scale=Math.max(.2,scale-.1);root.setAttribute('scale',\`\${scale} \${scale} \${scale}\`);}
-  if(cmd==='zones'){zonesOn=!zonesOn;document.querySelectorAll('[id^="z0"],[id^="z1"],[id^="z2"],[id^="zh"],[id^="lz"]').forEach(el=>el.setAttribute('visible',zonesOn));}
-  if(cmd==='elec'){elecOn=!elecOn;document.querySelectorAll('[id^="el"],[id^="eg"],[id^="et"],[id^="er"]').forEach(el=>el.setAttribute('visible',elecOn));}
-});
-<\/script>
-</body></html>`;
+
+  const supported = await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
+  if (!supported) {
+    setStatus('AR non supporté', '#f87171');
+    document.getElementById('hint').textContent = '❌ AR non supportée sur cet appareil';
+    return;
+  }
+
+  setStatus('Démarrage AR…', '#fbbf24');
+
+  try {
+    xrSession = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test', 'dom-overlay'],
+      optionalFeatures: ['local-floor'],
+      domOverlay: { root: document.body }
+    });
+
+    // Canvas WebGL
+    canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1';
+    document.body.appendChild(canvas);
+
+    gl = canvas.getContext('webgl', { xrCompatible: true, alpha: true });
+    await gl.makeXRCompatible();
+
+    xrSession.updateRenderState({
+      baseLayer: new XRWebGLLayer(xrSession, gl)
+    });
+
+    xrRefSpace = await xrSession.requestReferenceSpace('local-floor')
+      .catch(() => xrSession.requestReferenceSpace('local'));
+
+    // Hit-test depuis le centre de l'écran (viewer)
+    const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+    hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+    xrSession.addEventListener('end', () => {
+      xrSession = null;
+      setStatus('Session AR terminée', '#94a3b8');
+    });
+
+    // Tap = placer l'objet
+    xrSession.addEventListener('select', () => placeObject());
+
+    setStatus('Surface détectée · Pointez le sol', '#34d399');
+    document.getElementById('placeBtn').style.display = 'block';
+    document.getElementById('hint').textContent = 'Pointez vers le sol · Bouton ou tap écran pour poser';
+
+    xrSession.requestAnimationFrame(onXRFrame);
+
+  } catch(e) {
+    setStatus('Erreur: ' + e.message, '#f87171');
+    console.error(e);
+  }
 }
 
-// Générer le marqueur Hiro en data URL
-function genMarkerURL(){
-  const cv=document.createElement('canvas');cv.width=256;cv.height=256;
-  drawMarkerCanvas2(cv);return cv.toDataURL('image/png');
-}
-function drawMarkerCanvas(id){
-  const cv=document.getElementById(id);if(!cv)return;
-  drawMarkerCanvas2(cv);
-}
-function drawMarkerCanvas2(cv){
-  const ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#fff';ctx.fillRect(W*.1,H*.1,W*.8,H*.8);
-  ctx.fillStyle='#000';ctx.fillRect(W*.18,H*.18,W*.64,H*.64);
-  ctx.fillStyle='#fff';ctx.fillRect(W*.26,H*.26,W*.48,H*.48);
-  const s=W*.1,cx2=W/2,cy2=H/2;
-  ctx.fillStyle='#000';
-  ctx.fillRect(cx2-s*.5,cy2-s*1.8,s,s*3.6);
-  ctx.fillRect(cx2-s*1.8,cy2-s*.5,s*3.6,s);
-  [[cx2-s*2,cy2-s*2],[cx2+s,cy2-s*2],[cx2-s*2,cy2+s],[cx2+s,cy2+s]].forEach(([x,y])=>ctx.fillRect(x,y,s,s));
+// ═══════════════════════════
+//  Rendu WebGL minimal
+// ═══════════════════════════
+
+// Shader simple
+const vsSource = `
+  attribute vec4 aPos;
+  uniform mat4 uMVP;
+  void main() { gl_Position = uMVP * aPos; }
+`;
+const fsSource = `
+  precision mediump float;
+  uniform vec4 uColor;
+  void main() { gl_FragColor = uColor; }
+`;
+
+let prog = null;
+let cubeVBO = null;
+let cubeIBO = null;
+
+function initGL() {
+  // Compile shaders
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, vsSource); gl.compileShader(vs);
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, fsSource); gl.compileShader(fs);
+  prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+
+  // Cube vertices (0.2m de côté)
+  const s = 0.1; // demi-côté
+  const verts = new Float32Array([
+    -s,-s,-s,  s,-s,-s,  s, s,-s, -s, s,-s, // front
+    -s,-s, s,  s,-s, s,  s, s, s, -s, s, s, // back
+  ]);
+  cubeVBO = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, cubeVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+  const idx = new Uint16Array([
+    0,1,2, 0,2,3, // front
+    4,5,6, 4,6,7, // back
+    0,4,7, 0,7,3, // left
+    1,5,6, 1,6,2, // right
+    3,2,6, 3,6,7, // top
+    0,1,5, 0,5,4  // bottom
+  ]);
+  cubeIBO = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIBO);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
 }
 
-function printMarker(){
-  const url=genMarkerURL();
-  const w=window.open('');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Marqueur Hiro · ÉlecStudio</title>
-  <style>body{margin:20px;display:flex;flex-direction:column;align-items:center;font-family:sans-serif}
-  img{width:220px;height:220px;image-rendering:pixelated;border:3px solid #000;margin-bottom:16px}
-  h2{font-size:17px;margin-bottom:8px;color:#1b2236}p{font-size:13px;color:#6b7898;text-align:center;max-width:280px;line-height:1.6}
-  @media print{button{display:none}}</style></head>
-  <body><img src="${url}"><h2>Marqueur HIRO · ÉlecStudio RA v1.5</h2>
-  <p><b>Découpez et posez à plat au sol</b><br>Pointez le téléphone depuis 50–80 cm<br>La scène 3D s'ancre et reste fixée</p>
-  <button onclick="print()" style="margin-top:14px;padding:10px 22px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:14px;cursor:pointer">🖨️ Imprimer</button>
-  </body></html>`);
+// Matrix helpers
+function mat4Multiply(a, b) {
+  const out = new Float32Array(16);
+  for (let i = 0; i < 4; i++)
+    for (let j = 0; j < 4; j++)
+      for (let k = 0; k < 4; k++)
+        out[i*4+j] += a[i*4+k] * b[k*4+j];
+  return out;
 }
 
-function setSt(t,txt){
-  const d=document.getElementById('stDot');
-  if(d)d.className='sdt '+t;
-  const s=document.getElementById('stTxt');
-  if(s)s.textContent=txt;
-}
-function updateVolPanel(){
-  const v=calcVols();
-  const vp=document.getElementById('volP');
-  if(!vp)return;
-  vp.innerHTML=`<div class="vt">Volumes NF C 15-100</div>
-    <div class="vr"><span class="vk">Pièce</span><span class="vv">${v.roomVol.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Zone 0</span><span class="vv" style="color:#f87171">${v.z0.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Zone 1 H≤2,25m</span><span class="vv" style="color:#fbbf24">${v.z1.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Zone 2 H≤2,25m</span><span class="vv" style="color:#93c5fd">${v.z2.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Hors zone</span><span class="vv" style="color:#34d399">${v.hors.toFixed(2)} m³</span></div>`;
+function mat4RotY(angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  return new Float32Array([c,0,s,0, 0,1,0,0, -s,0,c,0, 0,0,0,1]);
 }
 
-// ─── NORMES ───
-function runVal(){
-  const els=ST.elements.filter(e=>CAT[e.type]?.g==='el');const v=calcVols();let te=0,tw=0,cards='';
-  for(const el of els){const c=CAT[el.type],{errs,warns}=chkEl(el);te+=errs.length;tw+=warns.length;const st=errs.length?'er':warns.length?'wn':'ok';const zL=el.zone==='hors'?'Hors zone':el.zone!=null?'Zone '+el.zone:'—';cards+=`<div class="ncard"><div class="nhead"><span class="nico">${c.ico}</span><span class="nname">${c.label}</span><span class="nzone ${st==='ok'?'ok':'wn'}">${st==='er'?'NON CONFORME':st==='wn'?'À VÉRIFIER':'CONFORME'}</span></div><div class="nbody"><div class="nrow"><span class="nk">Zone</span><span class="nv" style="color:var(--${st==='er'?'er':st==='wn'?'wn':'ok'})">${zL}</span></div><div class="nrow"><span class="nk">Hauteur</span><span class="nv">${el.heightM?.toFixed(2)||'?'} m</span></div><div class="nrow"><span class="nk">Dist. bord</span><span class="nv">${el.distCm===Infinity?'—':Math.round(el.distCm)+' cm'}</span></div><div class="nrow"><span class="nk">IP</span><span class="nv">${el.ip||'—'}</span></div><div class="nrow"><span class="nk">Classe</span><span class="nv">${el.classe||'—'}</span></div></div><div style="padding:5px 12px 9px">${[...errs.map(m=>`<div style="color:var(--er);font-size:.68rem">❌ ${m}</div>`),...warns.map(m=>`<div style="color:var(--wn);font-size:.68rem">⚠️ ${m}</div>`),st==='ok'?'<div style="color:var(--ok);font-size:.68rem">✅ Conforme</div>':''].join('')}</div></div>`;}
-  const sc=Math.max(0,Math.round(100-te*20-tw*5));const scSt=sc>=80?'ok':sc>=50?'wn':'er';const cols={ok:'var(--ok)',wn:'var(--wn)',er:'var(--er)'};
-  document.getElementById('validRes').innerHTML=`<div class="sw"><div style="font-family:'Syne',sans-serif;font-size:2.7rem;font-weight:800;color:${cols[scSt]};line-height:1">${sc}%</div><div style="font-size:.74rem;color:var(--mid);margin-top:3px">${sc>=80?'Installation conforme':sc>=50?'Corrections nécessaires':'Erreurs graves'}</div><div style="display:flex;justify-content:center;gap:6px;margin-top:8px;flex-wrap:wrap">${te?`<span style="padding:3px 10px;border-radius:16px;font-size:.67rem;font-weight:700;background:var(--erb);color:var(--er)">${te} erreur${te>1?'s':''}</span>`:''} ${tw?`<span style="padding:3px 10px;border-radius:16px;font-size:.67rem;font-weight:700;background:var(--wnb);color:var(--wn)">${tw} alerte${tw>1?'s':''}</span>`:''} ${!te&&!tw?'<span style="padding:3px 10px;border-radius:16px;font-size:.67rem;font-weight:700;background:var(--okb);color:var(--ok)">✅ Aucun problème</span>':''}</div><div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:5px;text-align:left"><div style="background:var(--bg);border-radius:7px;padding:7px 9px;font-size:.64rem"><div style="color:var(--mid);margin-bottom:2px">Pièce</div><div style="font-family:'JetBrains Mono',monospace;font-weight:600">${v.roomVol.toFixed(2)} m³</div></div><div style="background:rgba(220,38,38,.07);border-radius:7px;padding:7px 9px;font-size:.64rem"><div style="color:var(--er);margin-bottom:2px">Zone 0</div><div style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--er)">${v.z0.toFixed(2)} m³</div></div><div style="background:rgba(217,119,6,.07);border-radius:7px;padding:7px 9px;font-size:.64rem"><div style="color:var(--wn);margin-bottom:2px">Zone 1 (H≤2,25m)</div><div style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--wn)">${v.z1.toFixed(2)} m³</div></div><div style="background:rgba(37,99,235,.07);border-radius:7px;padding:7px 9px;font-size:.64rem"><div style="color:var(--ac);margin-bottom:2px">Zone 2 (H≤2,25m)</div><div style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--ac)">${v.z2.toFixed(2)} m³</div></div><div style="background:rgba(5,150,105,.07);border-radius:7px;padding:7px 9px;font-size:.64rem;grid-column:span 2"><div style="color:var(--ok);margin-bottom:2px">Hors zone</div><div style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--ok)">${v.hors.toFixed(2)} m³</div></div></div></div>${els.length?cards:'<div style="padding:10px;font-size:.75rem;color:var(--mid)">Aucun élément électrique placé.</div>'}`;
-}
-function renderNormes(){
-  runVal();
-  const F=[{t:'prise',z:'Hors zone',zc:'ok',h:'0,95–1,30m',d:'min 1,20m',ip:'IP21',cl:'II',ref:'§701.55.1',n:'Circuit 20A dédié'},{t:'interrupteur',z:'Hors zone',zc:'ok',h:'0,90–1,30m',d:'min 0,60m',ip:'IP21',cl:'II',ref:'§701.56'},{t:'dcl',z:'Zones 1/2/Hors',zc:'wn',h:'> 2,20m',d:'—',ip:'IP44 zones',cl:'II',ref:'§701.55.3',n:'Alimentation DCL'},{t:'spot',z:'Toutes zones',zc:'wn',h:'> 2,00m',d:'—',ip:'IP44 zones',cl:'II',ref:'§701.55.3'},{t:'applique',z:'Zone 2/Hors',zc:'wn',h:'> 2,25m',d:'—',ip:'IP44',cl:'II',ref:'§701.55.3'},{t:'hublot',z:'Zones 1/2/Hors',zc:'wn',h:'> 2,00m',d:'—',ip:'IP44',cl:'II',ref:'§701.55'},{t:'seche',z:'Zone 1 ou 2',zc:'wn',h:'variable',d:'fixe',ip:'IP44',cl:'II',ref:'§701.55.4',n:'Circuit dédié'},{t:'vmc',z:'Toutes (hauteur)',zc:'ok',h:'> 2,25m',d:'—',ip:'IP45',cl:'II',ref:'§701.55.5',n:'15m³/h min'},{t:'tableau',z:'Hors zone',zc:'ok',h:'accessible',d:'min 1,20m',ip:'IP21',cl:'II',ref:'§701.53',n:'Déconseillé SDB'}];
-  document.getElementById('normWrap').innerHTML=`<div id="validRes"></div><div class="zleg"><div class="zlt">Zones NF C 15-100 §701</div><div class="zlr"><div class="zlsw" style="background:rgba(220,38,38,.55)"></div><div><b>Zone 0</b> — intérieur baignoire/douche</div></div><div class="zlr"><div class="zlsw" style="background:rgba(217,119,6,.5)"></div><div><b>Zone 1</b> — 0→60cm du bord · H≤2,25m</div></div><div class="zlr"><div class="zlsw" style="background:rgba(37,99,235,.4)"></div><div><b>Zone 2</b> — 60→120cm du bord · H≤2,25m</div></div><div class="zlr"><div class="zlsw" style="background:#94a3b8"></div><div><b>Hors zone</b> — >120cm ou H>2,25m</div></div></div>${F.map(f=>{const c=CAT[f.t];return`<div class="ncard"><div class="nhead"><span class="nico">${c.ico}</span><span class="nname">${c.label}</span><span class="nzone ${f.zc}">${f.z}</span></div><div class="nbody"><div class="nrow"><span class="nk">Hauteur</span><span class="nv">${f.h}</span></div><div class="nrow"><span class="nk">Dist. bord eau</span><span class="nv">${f.d}</span></div><div class="nrow"><span class="nk">IP</span><span class="nv">${f.ip}</span></div><div class="nrow"><span class="nk">Classe isol.</span><span class="nv">${f.cl}</span></div>${f.n?`<div class="nrow"><span class="nk">Note</span><span class="nv">${f.n}</span></div>`:''}</div><div class="nref">NF C 15-100 ${f.ref}</div></div>`;}).join('')}<div style="height:12px"></div>`;
-  runVal();
+function drawCube(projView, modelMatrix, color) {
+  const mvp = mat4Multiply(projView, modelMatrix);
+  gl.useProgram(prog);
+
+  const posLoc = gl.getAttribLocation(prog, 'aPos');
+  gl.bindBuffer(gl.ARRAY_BUFFER, cubeVBO);
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+
+  const mvpLoc = gl.getUniformLocation(prog, 'uMVP');
+  gl.uniformMatrix4fv(mvpLoc, false, mvp);
+
+  const colLoc = gl.getUniformLocation(prog, 'uColor');
+  gl.uniform4fv(colLoc, color);
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIBO);
+  gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
 }
 
-// ─── INIT ───
-window.addEventListener('DOMContentLoaded',()=>initDraw());
-window.addEventListener('resize',()=>{
-  if(dcv){const d=document.getElementById('drawMain');dcv.width=d.clientWidth;dcv.height=d.clientHeight;reDraw();}
-  if(pcv){const p=document.getElementById('placeMain');pcv.width=p.clientWidth;pcv.height=p.clientHeight;drawPlace();}
+// ═══════════════════════════
+//  Frame loop
+// ═══════════════════════════
+let currentHitMatrix = null;
+
+function onXRFrame(t, frame) {
+  if (!frame) return;
+  xrSession.requestAnimationFrame(onXRFrame);
+
+  const glLayer = xrSession.renderState.baseLayer;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const pose = frame.getViewerPose(xrRefSpace);
+  if (!pose) return;
+
+  // Init GL une seule fois
+  if (!prog) initGL();
+
+  // Hit-test
+  if (hitTestSource && !placed) {
+    const hits = frame.getHitTestResults(hitTestSource);
+    if (hits.length > 0) {
+      const hitPose = hits[0].getPose(xrRefSpace);
+      if (hitPose) {
+        currentHitMatrix = hitPose.transform.matrix;
+        setStatus('Sol détecté ✓', '#34d399');
+      }
+    } else {
+      currentHitMatrix = null;
+      setStatus('Cherche une surface…', '#fbbf24');
+    }
+  }
+
+  for (const view of pose.views) {
+    const vp = glLayer.getViewport(view);
+    gl.viewport(vp.x, vp.y, vp.width, vp.height);
+
+    // matrice projection * vue
+    const proj = view.projectionMatrix;
+    const viewMat = view.transform.inverse.matrix;
+    const projView = mat4Multiply(proj, viewMat);
+
+    // Reticle (indicateur de surface en cours)
+    if (currentHitMatrix && !placed) {
+      // Petit disque plat à l'endroit du hit
+      const rm = mat4Multiply(currentHitMatrix, new Float32Array([
+        0.05,0,0,0, 0,0.003,0,0, 0,0,0.05,0, 0,0,0,1
+      ]));
+      drawCube(projView, rm, new Float32Array([1,1,1,0.5]));
+    }
+
+    // Cube placé
+    if (placed && placedMatrix) {
+      objectRotY += 0.008; // rotation lente
+      const rotMat = mat4RotY(objectRotY);
+      const model = mat4Multiply(placedMatrix, rotMat);
+      // Cube bleu
+      drawCube(projView, model, new Float32Array([0.15, 0.4, 0.9, 0.92]));
+      // Ombre (carré plat au sol)
+      const shadowMat = mat4Multiply(placedMatrix, new Float32Array([
+        0.12,0,0,0, 0,0.002,0,0, 0,0,0.12,0, 0,0,0,1
+      ]));
+      drawCube(projView, shadowMat, new Float32Array([0,0,0,0.3]));
+    }
+  }
+}
+
+// ═══════════════════════════
+//  Actions
+// ═══════════════════════════
+function placeObject() {
+  if (currentHitMatrix) {
+    placedMatrix = new Float32Array(currentHitMatrix);
+    placed = true;
+    hitTestSource = null; // stop hit-test (économie batterie)
+    setStatus('Cube posé ! Déplacez-vous autour', '#34d399');
+    document.getElementById('hint').textContent = '✅ Cube ancré au sol · Déplacez-vous, il reste en place';
+    document.getElementById('placeBtn').style.display = 'none';
+    document.getElementById('resetBtn').style.display = 'block';
+    document.getElementById('reticle').style.display = 'none';
+  } else {
+    setStatus('Pointez vers une surface plane', '#fbbf24');
+  }
+}
+
+function resetObject() {
+  placed = false;
+  placedMatrix = null;
+  currentHitMatrix = null;
+  // Relancer hit-test
+  if (xrSession && xrRefSpace) {
+    xrSession.requestReferenceSpace('viewer').then(viewerSpace => {
+      xrSession.requestHitTestSource({ space: viewerSpace }).then(src => {
+        hitTestSource = src;
+      });
+    });
+  }
+  setStatus('Pointez vers une surface', '#fbbf24');
+  document.getElementById('placeBtn').style.display = 'block';
+  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('reticle').style.display = 'block';
+  document.getElementById('hint').textContent = 'Pointez vers le sol · Bouton ou tap pour poser';
+}
+
+// ═══════════════════════════
+//  Démarrage
+// ═══════════════════════════
+window.addEventListener('load', () => {
+  if (navigator.xr) {
+    navigator.xr.isSessionSupported('immersive-ar').then(ok => {
+      if (ok) {
+        setStatus('AR disponible · Lancement…', '#34d399');
+        startAR();
+      } else {
+        setStatus('AR non supportée', '#f87171');
+        document.getElementById('hint').innerHTML =
+          '❌ AR non supportée<br>Requiert Chrome Android avec ARCore ou Safari iOS 17+<br>Le fichier doit être servi en <b>HTTPS</b>';
+      }
+    });
+  } else {
+    setStatus('WebXR non disponible', '#f87171');
+    document.getElementById('hint').innerHTML =
+      '❌ WebXR non disponible<br>Ouvrez ce fichier sur <b>GitHub Pages</b> (HTTPS)<br>avec Chrome Android ou Safari iOS 17+';
+  }
 });
 </script>
 </body>
