@@ -3,303 +3,304 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>AR Cube v4.0</title>
+<title>AR Debug v5.0</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0f172a;color:#fff;font-family:sans-serif;overflow:hidden;height:100vh}
 #home{display:flex;flex-direction:column;align-items:center;justify-content:center;
   height:100vh;gap:20px;padding:32px;text-align:center}
 h1{font-size:2rem;color:#60a5fa;font-weight:800}
-p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.8;max-width:280px}
-#startBtn{padding:18px 48px;border-radius:32px;border:none;background:#2563eb;
-  color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer}
-#startBtn:active{transform:scale(.96)}
+p{color:rgba(255,255,255,.6);font-size:.85rem;line-height:1.8;max-width:280px}
+button{padding:16px 40px;border-radius:30px;border:none;background:#2563eb;
+  color:#fff;font-size:1rem;font-weight:700;cursor:pointer}
+button:active{transform:scale(.96)}
 #hud{position:fixed;inset:0;z-index:99;pointer-events:none;display:none}
-#topbar{position:absolute;top:0;left:0;right:0;padding:12px 16px;
-  background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);
-  display:flex;align-items:center;gap:8px;font-size:.8rem}
-#status{color:#fbbf24}
-#cross{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:40px;height:40px;pointer-events:none}
-#cross::before,#cross::after{content:'';position:absolute;background:rgba(255,255,255,.8);border-radius:1px}
-#cross::before{width:2px;height:20px;left:19px;top:10px}
-#cross::after{width:20px;height:2px;left:10px;top:19px}
-#hint{position:absolute;top:53%;left:50%;transform:translateX(-50%);
-  background:rgba(0,0,0,.65);padding:7px 16px;border-radius:18px;font-size:.75rem;white-space:nowrap}
-#actions{position:absolute;bottom:28px;left:0;right:0;
+#topbar{position:absolute;top:0;left:0;right:0;padding:10px 14px;
+  background:rgba(0,0,0,.75);font-size:.72rem;line-height:1.9;
+  font-family:monospace}
+#log{color:#34d399}
+#actions{position:absolute;bottom:24px;left:0;right:0;
   display:flex;justify-content:center;gap:10px;pointer-events:all}
-.btn{padding:13px 26px;border-radius:26px;border:none;color:#fff;
-  font-size:.88rem;font-weight:700;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.4)}
+.btn{padding:12px 24px;border-radius:24px;border:none;color:#fff;
+  font-size:.85rem;font-weight:700;cursor:pointer}
 .btn:active{transform:scale(.95)}
-#btnPlace{background:#2563eb}
-#btnReset{background:rgba(80,80,120,.7);border:1px solid rgba(255,255,255,.2);
-  font-size:.78rem;padding:10px 16px;display:none}
 </style>
 </head>
 <body>
 
 <div id="home">
-  <h1>AR Cube · v4.0</h1>
-  <p>Pointez vers le sol.<br>Tapez pour poser un cube.<br>Déplacez-vous autour — il reste ancré.</p>
-  <button id="startBtn" onclick="startAR()">📷 Lancer la RA</button>
+  <h1>AR Debug · v5.0</h1>
+  <p>Affiche les surfaces détectées en temps réel avant de placer le cube.</p>
+  <button onclick="startAR()">📷 Démarrer</button>
 </div>
 
 <div id="hud">
   <div id="topbar">
-    <b>AR Cube v4.0</b> — <span id="status">…</span>
+    <div><b>AR Debug v5.0</b> — <span id="status" style="color:#fbbf24">…</span></div>
+    <div id="log"></div>
   </div>
-  <div id="cross"></div>
-  <div id="hint">Pointez vers le sol</div>
   <div id="actions">
-    <button class="btn" id="btnPlace" onclick="placeObj()">📍 Poser le cube</button>
-    <button class="btn" id="btnReset" onclick="resetObj()">↺ Recommencer</button>
+    <button class="btn" style="background:#2563eb" onclick="placeObj()">📍 Placer cube</button>
+    <button class="btn" style="background:rgba(80,80,120,.8);border:1px solid rgba(255,255,255,.2)"
+            onclick="resetObj()">↺ Reset</button>
   </div>
 </div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════
-//  On utilise Three.js via CDN — pas de WebGL
-//  manuel. Three.js gère les matrices
-//  correctement avec son propre système.
-//  WebXR fournit la pose caméra, Three.js
-//  dessine le cube proprement.
-// ═══════════════════════════════════════════════
-
-let ses, refSpace, hitSrc;
+let ses, ref, hitSrc;
+let gl, prog, progLine;
 let placed = false;
-let cubeX = 0, cubeY = 0, cubeZ = 0; // position monde ancrée
-let hitX = 0,  hitY = 0,  hitZ = 0;  // surface détectée
+let hitX=0, hitY=0, hitZ=0, hitFound=false;
+let cubeX=0, cubeY=0, cubeZ=0;
+let rotY = 0;
+let frameCount = 0;
+let hitCount = 0;
 
-// WebGL manuel simplifié — UN cube avec
-// multiplication de matrices utilisant
-// gl-matrix (librairie éprouvée)
+// Buffers
+let cubeBufs, rBuf, lineBuf;
 
-// On charge gl-matrix depuis CDN
-const script = document.createElement('script');
-script.src = 'https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js';
-document.head.appendChild(script);
-
-let gl, prog, mesh;
-let canvasEl;
-
-// ── Démarrage AR ──
 async function startAR() {
-  if (!navigator.xr) { alert('WebXR non dispo'); return; }
+  if (!navigator.xr) { alert('WebXR non disponible'); return; }
   try {
     ses = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['hit-test'],
-      optionalFeatures: ['dom-overlay', 'local-floor', 'anchors'],
+      optionalFeatures: ['dom-overlay','local-floor'],
       domOverlay: { root: document.body }
     });
-  } catch(e) { alert('Erreur: ' + e.message); return; }
+  } catch(e) { alert('Erreur: '+e.message); return; }
 
   document.getElementById('home').style.display = 'none';
   document.getElementById('hud').style.display  = 'block';
-  setSt('Calibration…', '#fbbf24');
 
-  ses.addEventListener('end', onEnd);
+  ses.addEventListener('end', ()=>{
+    document.getElementById('home').style.display='flex';
+    document.getElementById('hud').style.display='none';
+  });
   ses.addEventListener('select', onTap);
 
-  canvasEl = document.createElement('canvas');
-  canvasEl.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none';
-  document.body.appendChild(canvasEl);
-
-  gl = canvasEl.getContext('webgl', { xrCompatible: true, alpha: true });
+  // Canvas
+  const cv = document.createElement('canvas');
+  cv.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none';
+  document.body.appendChild(cv);
+  gl = cv.getContext('webgl',{xrCompatible:true,alpha:true});
   await gl.makeXRCompatible();
-  ses.updateRenderState({ baseLayer: new XRWebGLLayer(ses, gl) });
+  ses.updateRenderState({baseLayer:new XRWebGLLayer(ses,gl)});
 
-  try       { refSpace = await ses.requestReferenceSpace('local-floor'); }
-  catch (e) { refSpace = await ses.requestReferenceSpace('local'); }
+  try { ref = await ses.requestReferenceSpace('local-floor'); log('refSpace: local-floor','#34d399'); }
+  catch { ref = await ses.requestReferenceSpace('local'); log('refSpace: local','#fbbf24'); }
 
-  await startHitTest();
-
-  // Attendre que gl-matrix soit chargé
-  await waitScript();
-  buildMesh();
-
+  await startHit();
+  buildGL();
   ses.requestAnimationFrame(loop);
+  setSt('Pointez vers le sol…','#fbbf24');
 }
 
-function waitScript() {
-  return new Promise(res => {
-    const check = () => window.glMatrix ? res() : setTimeout(check, 50);
-    check();
-  });
-}
-
-async function startHitTest() {
+async function startHit() {
   const vs = await ses.requestReferenceSpace('viewer');
-  hitSrc = await ses.requestHitTestSource({ space: vs });
+  hitSrc = await ses.requestHitTestSource({space:vs});
+  log('hitTestSource OK','#34d399');
 }
 
-function onEnd() {
-  document.getElementById('home').style.display = 'flex';
-  document.getElementById('hud').style.display  = 'none';
-  placed = false;
-  if (canvasEl) canvasEl.remove();
-}
-
-function onTap() { placeObj(); }
+function onTap() { if (!placed) placeObj(); else resetObj(); }
 
 function placeObj() {
-  if (!hitSrc) return;
-  cubeX = hitX; cubeY = hitY; cubeZ = hitZ;
-  placed = true;
-  // Stop hit-test
-  try { hitSrc.cancel(); } catch {}
-  hitSrc = null;
-  setSt('Cube ancré ✓ Bougez-vous !', '#34d399');
-  document.getElementById('hint').style.display = 'none';
-  hide('btnPlace'); show('btnReset');
+  if (!hitFound) { setSt('Pas de surface !','#f87171'); return; }
+  cubeX=hitX; cubeY=hitY; cubeZ=hitZ;
+  placed=true;
+  try{hitSrc.cancel();}catch{}hitSrc=null;
+  setSt('Cube posé ✓','#34d399');
+  log(`Cube @ ${cubeX.toFixed(2)},${cubeY.toFixed(2)},${cubeZ.toFixed(2)}`,'#60a5fa');
 }
 
 function resetObj() {
-  placed = false;
-  startHitTest();
-  setSt('Pointez le sol…', '#fbbf24');
-  document.getElementById('hint').style.display = 'block';
-  show('btnPlace'); hide('btnReset');
+  placed=false; hitFound=false;
+  startHit();
+  setSt('Pointez le sol…','#fbbf24');
 }
 
-// ═══════════════════════════════════════════════
-//  Mesh WebGL avec gl-matrix
-// ═══════════════════════════════════════════════
-function buildMesh() {
-  const { vec3, mat4 } = glMatrix;
-
-  const vsrc = `
+// ── GL ──
+function buildGL() {
+  // Programme principal (cube coloré)
+  prog = makeProgram(`
     attribute vec3 aPos;
     attribute vec3 aCol;
-    attribute vec3 aNorm;
-    uniform mat4 uProj;
-    uniform mat4 uView;
-    uniform mat4 uModel;
+    uniform mat4 uMat;
     varying vec3 vCol;
-    varying vec3 vNorm;
-    void main(){
-      gl_Position = uProj * uView * uModel * vec4(aPos,1.0);
-      vNorm = normalize(vec3(uModel * vec4(aNorm,0.0)));
-      vCol  = aCol;
-    }`;
-
-  const fsrc = `
+    void main(){ gl_Position=uMat*vec4(aPos,1.0); vCol=aCol; }
+  `,`
     precision mediump float;
     varying vec3 vCol;
-    varying vec3 vNorm;
-    void main(){
-      float d = max(dot(vNorm, normalize(vec3(1.0,2.0,1.0))), 0.0);
-      gl_FragColor = vec4(vCol * (0.4 + 0.6*d), 1.0);
-    }`;
+    void main(){ gl_FragColor=vec4(vCol,1.0); }
+  `);
 
-  const vs = gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vs, vsrc); gl.compileShader(vs);
-  const fs = gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fs, fsrc); gl.compileShader(fs);
-  prog = gl.createProgram();
-  gl.attachShader(prog, vs); gl.attachShader(prog, fs);
-  gl.linkProgram(prog);
+  // Programme lignes (couleur uniforme)
+  progLine = makeProgram(`
+    attribute vec3 aPos;
+    uniform mat4 uMat;
+    void main(){ gl_Position=uMat*vec4(aPos,1.0); }
+  `,`
+    precision mediump float;
+    uniform vec4 uCol;
+    void main(){ gl_FragColor=uCol; }
+  `);
 
-  const s = 0.10; // cube 20cm
-
-  // Données : pos(3) + col(3) + norm(3) par vertex
-  // 6 faces × 4 vertex = 24 vertex
-  const D = [
-    // face, normale, couleur
-    [[[-s,-s, s],[s,-s, s],[s,s, s],[-s,s, s]], [0,0,1],  [0.3,0.6,1.0]], // front  bleu
-    [[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]], [0,0,-1], [0.2,0.4,0.9]], // back
-    [[[s,-s, s],[s,-s,-s],[s,s,-s],[s,s, s]],   [1,0,0],  [0.2,0.7,0.9]], // right  cyan
-    [[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],[-1,0,0], [0.2,0.5,0.9]], // left
-    [[[-s,s, s],[s,s, s],[s,s,-s],[-s,s,-s]],   [0,1,0],  [0.8,0.9,1.0]], // top    blanc
-    [[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]], [0,-1,0], [0.1,0.3,0.6]], // bottom foncé
+  // Cube 20cm
+  const s=0.10;
+  const cv=[], ci=[];
+  const faces=[
+    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],c:[.3,.6,1]},
+    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],c:[.15,.4,.9]},
+    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],c:[.2,.7,.9]},
+    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],c:[.2,.5,.9]},
+    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],c:[.8,.9,1]},
+    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],c:[.1,.3,.6]},
   ];
-
-  const verts = [], idx = [];
-  D.forEach(([vs, n, c], fi) => {
-    const b = fi * 4;
-    vs.forEach(p => verts.push(...p, ...c, ...n));
-    idx.push(b,b+1,b+2, b,b+2,b+3);
+  faces.forEach(({v,c},fi)=>{
+    const b=fi*4;
+    v.forEach(p=>cv.push(...p,...c));
+    ci.push(b,b+1,b+2,b,b+2,b+3);
   });
+  cubeBufs = makeBuf(new Float32Array(cv), new Uint16Array(ci), ci.length);
 
-  mesh = {};
-  mesh.vbo = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vbo);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
-  mesh.ibo = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
-  mesh.count = idx.length;
+  // Croix de réticule — 2 lignes perpendiculaires sur le plan XZ
+  const r=0.06;
+  rBuf = makeLineBuf(new Float32Array([
+    -r,0,0, r,0,0,   // axe X
+     0,0,-r, 0,0,r,  // axe Z
+    // Carré
+    -r,0,-r, r,0,-r,
+     r,0,-r, r,0, r,
+     r,0, r,-r,0, r,
+    -r,0, r,-r,0,-r,
+  ]));
 
-  // Réticule
-  const rv = [], ri = [];
-  rv.push(0,0,0, 1,1,1, 0,1,0);
-  for (let i=0; i<32; i++) {
-    const a = i/32*Math.PI*2;
-    rv.push(Math.cos(a)*0.07,0,Math.sin(a)*0.07, 1,1,1, 0,1,0);
-    ri.push(0, i+1, (i+1)%32+1);
+  // Grille de lignes pour visualiser le sol (10×10)
+  const gv=[];
+  const gs=0.5, gn=4;
+  for(let i=-gn;i<=gn;i++){
+    gv.push(i*gs,0,-gn*gs, i*gs,0,gn*gs);
+    gv.push(-gn*gs,0,i*gs, gn*gs,0,i*gs);
   }
-  mesh.rVbo = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.rVbo);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(rv), gl.STATIC_DRAW);
-  mesh.rIbo = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.rIbo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(ri), gl.STATIC_DRAW);
-  mesh.rCount = ri.length;
+  lineBuf = makeLineBuf(new Float32Array(gv));
 }
 
-// ── Draw ──
-let rotY = 0;
+function makeProgram(vsrc,fsrc){
+  const vs=gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs,vsrc);gl.compileShader(vs);
+  const fs=gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs,fsrc);gl.compileShader(fs);
+  const p=gl.createProgram();
+  gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))
+    log('Shader err: '+gl.getProgramInfoLog(p),'#f87171');
+  return p;
+}
 
-function draw(proj, view, model, vbo, ibo, count) {
-  const stride = 9 * 4;
+function makeBuf(verts,idx,count){
+  const vbo=gl.createBuffer(),ibo=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
+  return{vbo,ibo,count};
+}
+
+function makeLineBuf(verts){
+  const vbo=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
+  return{vbo,count:verts.length/3};
+}
+
+// ── Rendu ──
+function drawLines(mat, buf, r,g,b,a){
+  gl.useProgram(progLine);
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vbo);
+  const l=gl.getAttribLocation(progLine,'aPos');
+  gl.enableVertexAttribArray(l);
+  gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);
+  gl.uniformMatrix4fv(gl.getUniformLocation(progLine,'uMat'),false,mat);
+  gl.uniform4fv(gl.getUniformLocation(progLine,'uCol'),[r,g,b,a]);
+  gl.drawArrays(gl.LINES,0,buf.count);
+}
+
+function drawCube(mat,buf){
   gl.useProgram(prog);
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-
-  [['aPos',3,0],['aCol',3,3],['aNorm',3,6]].forEach(([n,s,o])=>{
-    const l = gl.getAttribLocation(prog,n);
-    if(l<0) return;
-    gl.enableVertexAttribArray(l);
-    gl.vertexAttribPointer(l,s,gl.FLOAT,false,stride,o*4);
-  });
-
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uProj'),  false, proj);
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uView'),  false, view);
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uModel'), false, model);
-  gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vbo);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buf.ibo);
+  const pl=gl.getAttribLocation(prog,'aPos');
+  const cl=gl.getAttribLocation(prog,'aCol');
+  gl.enableVertexAttribArray(pl);
+  gl.enableVertexAttribArray(cl);
+  gl.vertexAttribPointer(pl,3,gl.FLOAT,false,24,0);
+  gl.vertexAttribPointer(cl,3,gl.FLOAT,false,24,12);
+  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uMat'),false,mat);
+  gl.drawElements(gl.TRIANGLES,buf.count,gl.UNSIGNED_SHORT,0);
 }
 
-// ═══════════════════════════════════════════════
-//  Boucle — utilise gl-matrix pour les matrices
-// ═══════════════════════════════════════════════
+// ── Matrices avec gl-matrix ──
+// On charge gl-matrix INLINE pour éviter CDN
+// Implémentation minimale mat4
+const M = {
+  id(){ return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); },
+  mul(a,b){
+    const o=new Float32Array(16);
+    // gl-matrix column-major : o[col*4+row]
+    for(let c=0;c<4;c++) for(let r=0;r<4;r++) for(let k=0;k<4;k++)
+      o[c*4+r]+=a[k*4+r]*b[c*4+k];
+    return o;
+  },
+  translate(x,y,z){
+    const m=M.id();
+    m[12]=x; m[13]=y; m[14]=z;
+    return m;
+  },
+  rotY(a){
+    const c=Math.cos(a),s=Math.sin(a),m=M.id();
+    m[0]=c; m[8]=s; m[2]=-s; m[10]=c;
+    return m;
+  },
+  scale(x,y,z){
+    const m=M.id();
+    m[0]=x; m[5]=y; m[10]=z;
+    return m;
+  },
+  // Combine proj × view × model
+  mvp(proj,view,model){ return M.mul(M.mul(proj,view),model); }
+};
+
+// ── Boucle ──
 function loop(t, frame) {
   ses.requestAnimationFrame(loop);
-  if (!window.glMatrix || !prog) return;
+  if (!cubeBufs) return;
 
-  const { mat4 } = glMatrix;
+  frameCount++;
   const layer = ses.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
 
-  const pose = frame.getViewerPose(refSpace);
-  if (!pose) return;
+  const pose = frame.getViewerPose(ref);
+  if (!pose) { if(frameCount%60===0) log('Pas de pose caméra','#f87171'); return; }
 
   // Hit-test
   if (hitSrc) {
     const hits = frame.getHitTestResults(hitSrc);
-    if (hits.length > 0) {
-      const hp = hits[0].getPose(refSpace);
+    hitFound = hits.length > 0;
+    if (hitFound) {
+      hitCount++;
+      const hp = hits[0].getPose(ref);
       if (hp) {
-        // Extraire position depuis la matrice (colonnes 12,13,14)
         hitX = hp.transform.matrix[12];
         hitY = hp.transform.matrix[13];
         hitZ = hp.transform.matrix[14];
-        setSt('Surface ✓ Tapez pour poser', '#34d399');
       }
+      if (frameCount%30===0)
+        setSt(`Surface @ ${hitX.toFixed(2)}, ${hitY.toFixed(2)}, ${hitZ.toFixed(2)}`,'#34d399');
     } else {
-      setSt('Cherche une surface…', '#fbbf24');
+      if (frameCount%30===0) setSt('Cherche surface…','#fbbf24');
     }
   }
 
@@ -310,35 +311,53 @@ function loop(t, frame) {
     const proj = view.projectionMatrix;
     const viewM = view.transform.inverse.matrix;
 
-    // Réticule
-    if (hitSrc && !placed) {
-      const m = mat4.create();
-      mat4.fromTranslation(m, [hitX, hitY, hitZ]);
-      draw(proj, viewM, m, mesh.rVbo, mesh.rIbo, mesh.rCount);
+    // ── Grille de sol à la position hit ──
+    // Affichée en permanence pour confirmer la détection
+    if (hitFound && !placed) {
+      const gMat = M.mvp(proj, viewM, M.translate(hitX, hitY, hitZ));
+      drawLines(gMat, lineBuf, 0.2, 0.8, 0.4, 0.5); // vert semi-transparent
+
+      // Croix au centre du hit
+      const rMat = M.mvp(proj, viewM, M.translate(hitX, hitY, hitZ));
+      drawLines(rMat, rBuf, 1, 1, 0, 0.9); // jaune vif
     }
 
-    // Cube
+    // ── Cube ──
     if (placed) {
       rotY += 0.008;
-      // Matrice modèle = translation + lift + rotation
-      // mat4.create() donne une matrice identité propre
-      const m = mat4.create();
-      mat4.translate(m, m, [cubeX, cubeY + 0.10, cubeZ]);
-      mat4.rotateY(m, m, rotY);
-      draw(proj, viewM, m, mesh.vbo, mesh.ibo, mesh.count);
+      const model = M.mul(M.translate(cubeX, cubeY+0.10, cubeZ), M.rotY(rotY));
+      const mat   = M.mvp(proj, viewM, model);
+      drawCube(mat, cubeBufs);
 
-      // Ombre
-      const s = mat4.create();
-      mat4.translate(s, s, [cubeX, cubeY + 0.001, cubeZ]);
-      mat4.scale(s, s, [0.14, 0.001, 0.14]);
-      draw(proj, viewM, s, mesh.vbo, mesh.ibo, mesh.count);
+      // Axes XYZ au pied du cube pour debug orientation
+      const axMat = M.mvp(proj, viewM, M.translate(cubeX, cubeY+0.01, cubeZ));
+      drawLines(axMat, {vbo:makeAxisVbo(), count:6}, 1,0,0,1); // rouge=X
     }
   }
 }
 
-function setSt(t,c){ const s=document.getElementById('status'); s.textContent=t; s.style.color=c||'#fff'; }
-function show(id){ document.getElementById(id).style.display='block'; }
-function hide(id){ document.getElementById(id).style.display='none'; }
+// Axes XYZ (créés une fois)
+let _axVbo = null;
+function makeAxisVbo(){
+  if (_axVbo) return _axVbo;
+  const v=new Float32Array([0,0,0,.15,0,0, 0,0,0,0,.15,0, 0,0,0,0,0,.15]);
+  _axVbo=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,_axVbo);
+  gl.bufferData(gl.ARRAY_BUFFER,v,gl.STATIC_DRAW);
+  return _axVbo;
+}
+
+// ── UI ──
+let logLines=[];
+function log(t,c){
+  logLines.push(`<span style="color:${c||'#fff'}">${t}</span>`);
+  if(logLines.length>4) logLines.shift();
+  document.getElementById('log').innerHTML=logLines.join('<br>');
+}
+function setSt(t,c){
+  const s=document.getElementById('status');
+  s.textContent=t; s.style.color=c||'#fff';
+}
 </script>
 </body>
 </html>
