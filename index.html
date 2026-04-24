@@ -3,336 +3,419 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>AR Cube</title>
+<title>AR Cube v2.0</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:#0f172a; color:#fff; font-family:sans-serif; overflow:hidden; height:100vh; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;color:#fff;font-family:sans-serif;overflow:hidden;height:100vh}
+#home{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100vh;gap:20px;padding:32px;text-align:center}
+#home h1{font-size:2rem;color:#60a5fa;font-weight:800}
+#home p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.8;max-width:280px}
+#startBtn{padding:18px 48px;border-radius:32px;border:none;background:#2563eb;
+  color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 24px rgba(37,99,235,.5);-webkit-tap-highlight-color:transparent}
+#startBtn:active{transform:scale(.96)}
 
-#home {
-  display:flex; flex-direction:column; align-items:center;
-  justify-content:center; height:100vh; gap:24px; padding:32px;
-  text-align:center;
-}
-#home h1 { font-size:2rem; color:#60a5fa; font-weight:800; }
-#home p  { color:rgba(255,255,255,.55); font-size:.88rem; line-height:1.8; }
-#startBtn {
-  padding:18px 48px; border-radius:32px; border:none;
-  background:#2563eb; color:#fff; font-size:1.1rem; font-weight:700;
-  cursor:pointer; box-shadow:0 4px 24px rgba(37,99,235,.5);
-  -webkit-tap-highlight-color:transparent;
-}
-#startBtn:active { transform:scale(.96); }
+/* HUD */
+#hud{position:fixed;inset:0;z-index:99;pointer-events:none;display:none}
+#topbar{position:absolute;top:0;left:0;right:0;padding:12px 16px;
+  background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);
+  display:flex;align-items:center;gap:10px}
+#topbar b{font-size:.85rem}
+#status{font-size:.72rem;color:#fbbf24}
 
-#hud {
-  position:fixed; inset:0; z-index:99; pointer-events:none;
-  display:none;
-}
-#topbar {
-  position:absolute; top:0; left:0; right:0;
-  padding:10px 16px; background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent);
-  display:flex; align-items:center; gap:10px;
-}
-#topbar b { font-size:.85rem; }
-#status { font-size:.72rem; color:#fbbf24; }
+/* Réticule central fixe */
+#reticle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:48px;height:48px;pointer-events:none}
+#reticle::before,#reticle::after{content:'';position:absolute;background:rgba(255,255,255,.8);border-radius:2px}
+#reticle::before{width:2px;height:20px;left:23px;top:14px}
+#reticle::after{width:20px;height:2px;left:14px;top:23px}
+.reticle-ring{position:absolute;inset:0;border:2px solid rgba(255,255,255,.5);border-radius:50%}
 
-#hint {
-  position:absolute; top:50%; left:50%;
-  transform:translate(-50%, -50%);
-  background:rgba(0,0,0,.6); padding:8px 18px;
-  border-radius:20px; font-size:.78rem;
-  white-space:nowrap; pointer-events:none;
-}
+#hint{position:absolute;top:calc(50% + 40px);left:50%;
+  transform:translateX(-50%);background:rgba(0,0,0,.65);
+  padding:7px 16px;border-radius:18px;font-size:.75rem;white-space:nowrap}
 
-#actions {
-  position:absolute; bottom:32px; left:0; right:0;
-  display:flex; justify-content:center; gap:12px;
-  pointer-events:all;
-}
-.btn {
-  padding:14px 28px; border-radius:28px; border:none;
-  color:#fff; font-size:.9rem; font-weight:700; cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-  box-shadow:0 4px 16px rgba(0,0,0,.4);
-}
-#placeBtn  { background:#2563eb; display:none; }
-#grabBtn   { background:#7c3aed; display:none; }
-#releaseBtn{ background:#059669; display:none; }
-#resetBtn  { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); display:none; font-size:.78rem; padding:10px 18px; }
+#actions{position:absolute;bottom:28px;left:0;right:0;
+  display:flex;justify-content:center;gap:10px;pointer-events:all}
+.btn{padding:13px 26px;border-radius:26px;border:none;color:#fff;
+  font-size:.88rem;font-weight:700;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;box-shadow:0 3px 14px rgba(0,0,0,.4)}
+.btn:active{transform:scale(.95)}
+#placeBtn{background:#2563eb}
+#grabBtn{background:#7c3aed;display:none}
+#releaseBtn{background:#059669;display:none}
+#resetBtn{background:rgba(80,80,120,.7);border:1px solid rgba(255,255,255,.25);
+  font-size:.78rem;padding:10px 16px;display:none}
 </style>
 </head>
 <body>
 
-<!-- ÉCRAN D'ACCUEIL -->
 <div id="home">
-  <h1>AR Cube · v1.0</h1>
-  <p>
-    Pose un cube sur le sol.<br>
-    Déplace-toi — il reste ancré.<br>
-    Tap dessus pour le saisir et le déplacer.
-  </p>
+  <h1>AR Cube · v2.0</h1>
+  <p>Pose un cube sur le sol.<br>Déplace-toi autour — il reste ancré.<br>Saisis-le pour le repositionner.</p>
   <button id="startBtn" onclick="startAR()">📷 Lancer la RA</button>
 </div>
 
-<!-- HUD (pendant la session) -->
 <div id="hud">
   <div id="topbar">
-    <b>AR Cube · v1.0</b>
-    <span id="status">Initialisation…</span>
+    <b>AR Cube · v2.0</b>
+    <span id="status">…</span>
   </div>
+  <div id="reticle" style="display:none"><div class="reticle-ring"></div></div>
   <div id="hint" style="display:none"></div>
   <div id="actions">
-    <button class="btn" id="placeBtn"   onclick="placeObject()">📍 Poser ici</button>
-    <button class="btn" id="grabBtn"    onclick="grabObject()">✋ Saisir</button>
-    <button class="btn" id="releaseBtn" onclick="releaseObject()">📌 Poser</button>
-    <button class="btn" id="resetBtn"   onclick="resetObject()">↺</button>
+    <button class="btn" id="placeBtn"   onclick="placeObj()">📍 Poser ici</button>
+    <button class="btn" id="grabBtn"    onclick="grabObj()">✋ Saisir</button>
+    <button class="btn" id="releaseBtn" onclick="releaseObj()">📌 Poser</button>
+    <button class="btn" id="resetBtn"   onclick="resetObj()">↺ Recommencer</button>
   </div>
 </div>
 
 <script>
 'use strict';
 
-// ── État ──
-let session = null, refSpace = null, hitSrc = null;
-let gl = null, prog = null, vbo = null, ibo = null;
+// ═══════════════════════════════
+//  État global
+// ═══════════════════════════════
+let XR = {
+  session: null,
+  refSpace: null,   // espace de référence STABLE (local-floor)
+  hitSrc: null,
+  gl: null,
+  prog: null,
+  vbo: null,
+  ibo: null,
+};
 
-// Cube
-let placed    = false;   // cube posé au sol
-let grabbed   = false;   // cube en cours de déplacement
-let placedMat = null;    // matrice monde du cube posé
-let hitMat    = null;    // dernière surface détectée
-let rotY      = 0;
+let STATE = {
+  placed: false,
+  grabbed: false,
+  // Matrice 4x4 position monde du cube (dans refSpace)
+  // C'est la clé : on stocke dans local-floor, pas viewer
+  cubeMatrix: null,
+  // Dernière surface hit-test
+  hitMatrix: null,
+  rotY: 0,
+};
 
-// ── Démarrage ──
+// ═══════════════════════════════
+//  Démarrage
+// ═══════════════════════════════
 async function startAR() {
-  if (!navigator.xr) { alert('WebXR non disponible.\nUtilisez Chrome Android + ARCore.'); return; }
+  if (!navigator.xr) { alert('WebXR non disponible.\nChrome Android + ARCore requis.'); return; }
 
   try {
-    session = await navigator.xr.requestSession('immersive-ar', {
+    XR.session = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['hit-test'],
       optionalFeatures: ['dom-overlay', 'local-floor'],
       domOverlay: { root: document.body }
     });
   } catch(e) {
-    alert('Impossible d\'ouvrir la session AR :\n' + e.message);
-    return;
+    alert('Erreur AR: ' + e.message); return;
   }
 
-  // Cacher home, montrer HUD
+  // Masquer home, afficher HUD
   document.getElementById('home').style.display = 'none';
   document.getElementById('hud').style.display  = 'block';
-  setSt('Pointez vers le sol…', '#fbbf24');
-  showHint('Pointez vers une surface plane');
+  show('placeBtn'); showHint('Pointez vers le sol');
+  showEl('reticle');
 
-  session.addEventListener('end', () => {
-    document.getElementById('home').style.display = 'flex';
-    document.getElementById('hud').style.display  = 'none';
-    placed = grabbed = false; placedMat = hitMat = null;
-  });
+  XR.session.addEventListener('end', onEnd);
+  XR.session.addEventListener('select', onTap);
 
-  // Tap = poser ou saisir selon l'état
-  session.addEventListener('select', onTap);
-
-  // WebGL
+  // Canvas WebGL
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none';
   document.body.appendChild(canvas);
+  XR.gl = canvas.getContext('webgl', { xrCompatible: true, alpha: true });
+  await XR.gl.makeXRCompatible();
+  XR.session.updateRenderState({ baseLayer: new XRWebGLLayer(XR.session, XR.gl) });
 
-  gl = canvas.getContext('webgl', { xrCompatible:true, alpha:true });
-  await gl.makeXRCompatible();
-  session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
-
-  try { refSpace = await session.requestReferenceSpace('local-floor'); }
-  catch { refSpace = await session.requestReferenceSpace('local'); }
-
-  const viewerSpace = await session.requestReferenceSpace('viewer');
-  hitSrc = await session.requestHitTestSource({ space: viewerSpace });
-
-  initGL();
-  session.requestAnimationFrame(frame);
-
-  // Afficher bouton "Poser"
-  show('placeBtn');
-}
-
-// ── Tap écran ──
-function onTap() {
-  if (!placed) {
-    placeObject();
-  } else if (!grabbed) {
-    // Vérifie si le tap est proche du cube (toujours saisir pour simplifier)
-    grabObject();
-  } else {
-    releaseObject();
+  // ─── Espace de référence STABLE ───
+  // local-floor = ancré au sol réel → le cube ne bouge pas quand tu te déplaces
+  try {
+    XR.refSpace = await XR.session.requestReferenceSpace('local-floor');
+    setSt('Calibration sol…', '#fbbf24');
+  } catch {
+    XR.refSpace = await XR.session.requestReferenceSpace('local');
+    setSt('Mode local (pas de détection sol)', '#fbbf24');
   }
+
+  await startHitTest();
+  initGL();
+  XR.session.requestAnimationFrame(frame);
 }
 
-// ── Actions ──
-function placeObject() {
-  if (!hitMat) { setSt('Pointez d\'abord vers le sol', '#fbbf24'); return; }
-  placedMat = new Float32Array(hitMat);
-  placed = true;
-  hitSrc = null; // stop hit-test
-  setSt('Cube ancré ✓ · Déplacez-vous', '#34d399');
-  hideHint();
-  hide('placeBtn');
-  show('grabBtn');
-  show('resetBtn');
+async function startHitTest() {
+  // Hit-test depuis le centre de l'écran (viewer space)
+  const viewerSpace = await XR.session.requestReferenceSpace('viewer');
+  XR.hitSrc = await XR.session.requestHitTestSource({ space: viewerSpace });
 }
 
-function grabObject() {
-  if (!placed) return;
-  grabbed = true;
-  // Relancer hit-test pour suivre la surface pendant le déplacement
-  session.requestReferenceSpace('viewer').then(vs => {
-    session.requestHitTestSource({ space: vs }).then(src => { hitSrc = src; });
-  });
+function onEnd() {
+  document.getElementById('home').style.display = 'flex';
+  document.getElementById('hud').style.display  = 'none';
+  STATE = { placed:false, grabbed:false, cubeMatrix:null, hitMatrix:null, rotY:0 };
+}
+
+// ═══════════════════════════════
+//  Actions utilisateur
+// ═══════════════════════════════
+function onTap() {
+  if (!STATE.placed)       placeObj();
+  else if (!STATE.grabbed) grabObj();
+  else                     releaseObj();
+}
+
+function placeObj() {
+  if (!STATE.hitMatrix) { setSt('Pointez vers une surface', '#fbbf24'); return; }
+  // Copie la matrice hit dans l'espace stable refSpace
+  STATE.cubeMatrix = new Float32Array(STATE.hitMatrix);
+  STATE.placed = true;
+  STATE.rotY = 0;
+  // Stop hit-test pour économiser les ressources
+  if (XR.hitSrc) { XR.hitSrc.cancel?.(); XR.hitSrc = null; }
+  setSt('Cube ancré ✓ · Déplacez-vous !', '#34d399');
+  hideHint(); hideEl('reticle');
+  hide('placeBtn'); show('grabBtn'); show('resetBtn');
+}
+
+function grabObj() {
+  if (!STATE.placed) return;
+  STATE.grabbed = true;
+  // Relancer hit-test pour suivre la surface
+  startHitTest();
+  showEl('reticle');
   setSt('Cube saisi · Déplacez le téléphone', '#a78bfa');
-  hide('grabBtn');
-  show('releaseBtn');
+  hide('grabBtn'); show('releaseBtn');
 }
 
-function releaseObject() {
-  if (!grabbed) return;
-  if (hitMat) placedMat = new Float32Array(hitMat);
-  grabbed = false;
-  hitSrc = null;
-  setSt('Cube posé ✓', '#34d399');
-  hide('releaseBtn');
-  show('grabBtn');
+function releaseObj() {
+  if (!STATE.grabbed) return;
+  // Ancrer à la nouvelle position
+  if (STATE.hitMatrix) STATE.cubeMatrix = new Float32Array(STATE.hitMatrix);
+  STATE.grabbed = false;
+  if (XR.hitSrc) { XR.hitSrc.cancel?.(); XR.hitSrc = null; }
+  hideEl('reticle');
+  setSt('Cube ancré ✓', '#34d399');
+  hide('releaseBtn'); show('grabBtn');
 }
 
-function resetObject() {
-  placed = grabbed = false; placedMat = hitMat = null;
-  // Relancer hit-test
-  session.requestReferenceSpace('viewer').then(vs => {
-    session.requestHitTestSource({ space: vs }).then(src => { hitSrc = src; });
-  });
+function resetObj() {
+  if (XR.hitSrc) { XR.hitSrc.cancel?.(); XR.hitSrc = null; }
+  STATE.placed = false; STATE.grabbed = false;
+  STATE.cubeMatrix = null; STATE.hitMatrix = null;
+  startHitTest();
+  showEl('reticle');
   setSt('Pointez vers le sol…', '#fbbf24');
   showHint('Pointez vers une surface plane');
   hide('grabBtn'); hide('releaseBtn'); hide('resetBtn');
   show('placeBtn');
 }
 
-// ── WebGL init ──
+// ═══════════════════════════════
+//  WebGL — cube 20cm
+// ═══════════════════════════════
 function initGL() {
-  const vs = gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vs, 'attribute vec4 p;uniform mat4 m;void main(){gl_Position=m*p;}');
-  gl.compileShader(vs);
-  const fs = gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fs, 'precision mediump float;uniform vec4 c;void main(){gl_FragColor=c;}');
-  gl.compileShader(fs);
-  prog = gl.createProgram();
-  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+  const gl = XR.gl;
 
-  const s = 0.1;
-  vbo = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -s,-s,-s, s,-s,-s, s,s,-s, -s,s,-s,
-    -s,-s, s, s,-s, s, s,s, s, -s,s, s
-  ]), gl.STATIC_DRAW);
-  ibo = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([
-    0,1,2,0,2,3, 4,5,6,4,6,7,
-    0,4,7,0,7,3, 1,5,6,1,6,2,
-    3,2,6,3,6,7, 0,1,5,0,5,4
-  ]), gl.STATIC_DRAW);
+  // Vertex shader
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, `
+    attribute vec3 aPos;
+    attribute vec3 aNorm;
+    uniform mat4 uMVP;
+    uniform mat4 uModel;
+    varying vec3 vNorm;
+    void main(){
+      gl_Position = uMVP * vec4(aPos, 1.0);
+      vNorm = normalize((uModel * vec4(aNorm, 0.0)).xyz);
+    }
+  `);
+  gl.compileShader(vs);
+
+  // Fragment shader — éclairage simple
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, `
+    precision mediump float;
+    uniform vec4 uColor;
+    uniform vec3 uLight;
+    varying vec3 vNorm;
+    void main(){
+      float diff = max(dot(normalize(vNorm), normalize(uLight)), 0.0);
+      float ambient = 0.35;
+      float light = ambient + (1.0 - ambient) * diff;
+      gl_FragColor = vec4(uColor.rgb * light, uColor.a);
+    }
+  `);
+  gl.compileShader(fs);
+
+  XR.prog = gl.createProgram();
+  gl.attachShader(XR.prog, vs);
+  gl.attachShader(XR.prog, fs);
+  gl.linkProgram(XR.prog);
+
+  // Cube 20cm avec normales pour éclairage
+  const s = 0.10;
+  // 6 faces × 4 vertices = 24 vertices (pos + normal)
+  const verts = new Float32Array([
+    // Front  (z=+s)  normal 0,0,1
+    -s,-s,s, 0,0,1,   s,-s,s, 0,0,1,   s,s,s, 0,0,1,  -s,s,s, 0,0,1,
+    // Back   (z=-s)  normal 0,0,-1
+     s,-s,-s,0,0,-1, -s,-s,-s,0,0,-1, -s,s,-s,0,0,-1,  s,s,-s,0,0,-1,
+    // Left   (x=-s)  normal -1,0,0
+    -s,-s,-s,-1,0,0, -s,-s,s,-1,0,0,  -s,s,s,-1,0,0,  -s,s,-s,-1,0,0,
+    // Right  (x=+s)  normal 1,0,0
+     s,-s,s, 1,0,0,   s,-s,-s,1,0,0,   s,s,-s,1,0,0,   s,s,s, 1,0,0,
+    // Top    (y=+s)  normal 0,1,0
+    -s,s,s, 0,1,0,    s,s,s, 0,1,0,    s,s,-s,0,1,0,  -s,s,-s,0,1,0,
+    // Bottom (y=-s)  normal 0,-1,0
+    -s,-s,-s,0,-1,0,  s,-s,-s,0,-1,0,  s,-s,s,0,-1,0, -s,-s,s,0,-1,0,
+  ]);
+  XR.vbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, XR.vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+  // Indices — 6 faces × 2 triangles
+  const idx = [];
+  for (let i = 0; i < 6; i++) {
+    const b = i * 4;
+    idx.push(b,b+1,b+2, b,b+2,b+3);
+  }
+  XR.ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, XR.ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
 }
 
-// ── Maths matricielles ──
+// ─── Maths mat4 ───
 function mul(a, b) {
   const o = new Float32Array(16);
-  for(let i=0;i<4;i++) for(let j=0;j<4;j++) for(let k=0;k<4;k++) o[i*4+j]+=a[i*4+k]*b[k*4+j];
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++) for(let k=0;k<4;k++)
+    o[i*4+j] += a[i*4+k] * b[k*4+j];
   return o;
 }
-function ry(a) {
+function makeRotY(a) {
   const c=Math.cos(a), s=Math.sin(a);
   return new Float32Array([c,0,s,0, 0,1,0,0, -s,0,c,0, 0,0,0,1]);
 }
-function sc(x,y,z) {
+function makeScale(x,y,z) {
   return new Float32Array([x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]);
 }
-function lift(y) {
+function makeLift(y) {
+  // Translation verticale
   const m = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
   m[13] = y; return m;
 }
 
-// ── Dessin ──
-function draw(pv, model, color) {
+// ─── Dessin ───
+function drawMesh(pv, model, color, light) {
+  const gl = XR.gl;
   const mvp = mul(pv, model);
-  gl.useProgram(prog);
-  const loc = gl.getAttribLocation(prog, 'p');
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'m'), false, mvp);
-  gl.uniform4fv(gl.getUniformLocation(prog,'c'), color);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.useProgram(XR.prog);
+
+  // Attributs
+  const stride = 6 * 4;
+  const posLoc  = gl.getAttribLocation(XR.prog, 'aPos');
+  const normLoc = gl.getAttribLocation(XR.prog, 'aNorm');
+  gl.bindBuffer(gl.ARRAY_BUFFER, XR.vbo);
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, stride, 0);
+  gl.enableVertexAttribArray(normLoc);
+  gl.vertexAttribPointer(normLoc, 3, gl.FLOAT, false, stride, 12);
+
+  // Uniformes
+  gl.uniformMatrix4fv(gl.getUniformLocation(XR.prog,'uMVP'),   false, mvp);
+  gl.uniformMatrix4fv(gl.getUniformLocation(XR.prog,'uModel'), false, model);
+  gl.uniform4fv(gl.getUniformLocation(XR.prog,'uColor'), color);
+  gl.uniform3fv(gl.getUniformLocation(XR.prog,'uLight'), light || [1,2,1]);
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, XR.ibo);
   gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
 }
 
-// ── Boucle de rendu ──
+// ═══════════════════════════════
+//  Boucle de rendu
+// ═══════════════════════════════
 function frame(t, f) {
-  session.requestAnimationFrame(frame);
+  XR.session.requestAnimationFrame(frame);
+  const gl = XR.gl;
+  const layer = XR.session.renderState.baseLayer;
 
-  const layer = session.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  const pose = f.getViewerPose(refSpace);
+  const pose = f.getViewerPose(XR.refSpace);
   if (!pose) return;
 
-  // Hit-test
-  if (hitSrc) {
-    const hits = f.getHitTestResults(hitSrc);
+  // ─── Hit-test ───
+  if (XR.hitSrc) {
+    const hits = f.getHitTestResults(XR.hitSrc);
     if (hits.length > 0) {
-      const hp = hits[0].getPose(refSpace);
-      if (hp) hitMat = new Float32Array(hp.transform.matrix);
-    } else {
-      hitMat = null;
+      const hp = hits[0].getPose(XR.refSpace);
+      if (hp) {
+        STATE.hitMatrix = new Float32Array(hp.transform.matrix);
+        // Met à jour en temps réel si cube saisi
+        if (STATE.grabbed) STATE.cubeMatrix = new Float32Array(STATE.hitMatrix);
+      }
     }
   }
 
-  // Mise à jour position cube si saisi
-  if (grabbed && hitMat) placedMat = new Float32Array(hitMat);
-
+  // ─── Rendu par vue ───
   for (const view of pose.views) {
     const vp = layer.getViewport(view);
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
-    const pv = mul(view.projectionMatrix, view.transform.inverse.matrix);
 
-    // Réticule (cercle blanc au sol quand pas encore posé ou en déplacement)
-    if (hitMat && (!placed || grabbed)) {
-      draw(pv, mul(hitMat, sc(.07,.002,.07)), new Float32Array([1,1,1,.55]));
+    // Matrice projection × vue
+    const projView = mul(view.projectionMatrix, view.transform.inverse.matrix);
+
+    // Réticule (disque plat au sol)
+    if (STATE.hitMatrix && (!STATE.placed || STATE.grabbed)) {
+      const reticleMat = mul(STATE.hitMatrix, makeScale(.06, .002, .06));
+      drawMesh(projView, reticleMat,
+        new Float32Array([1, 1, 1, 0.6]),
+        [0, 1, 0]
+      );
     }
 
-    // Cube posé ou saisi
-    if (placed && placedMat) {
-      if (!grabbed) rotY += 0.008; // rotation douce quand posé
-      const color = grabbed
-        ? new Float32Array([.8,.5,1,.95])   // violet = saisi
-        : new Float32Array([.15,.45,.95,.92]); // bleu = posé
-      draw(pv, mul(mul(placedMat, lift(.1)), ry(rotY)), color);
-      // Ombre
-      draw(pv, mul(placedMat, sc(.13,.001,.13)), new Float32Array([0,0,0,.3]));
+    // Cube
+    if (STATE.placed && STATE.cubeMatrix) {
+      // Rotation lente seulement quand posé (pas saisi)
+      if (!STATE.grabbed) STATE.rotY += 0.007;
+
+      // Modèle = position sol × lift 10cm × rotation Y
+      const model = mul(
+        mul(STATE.cubeMatrix, makeLift(0.10)),
+        makeRotY(STATE.rotY)
+      );
+
+      // Couleur : bleu si posé, violet si saisi
+      const color = STATE.grabbed
+        ? new Float32Array([0.7, 0.3, 1.0, 0.95])
+        : new Float32Array([0.2, 0.5, 1.0, 0.95]);
+
+      drawMesh(projView, model, color, [1, 2, 0.5]);
+
+      // Ombre douce au sol
+      const shadow = mul(STATE.cubeMatrix, makeScale(.14, .001, .14));
+      drawMesh(projView, shadow, new Float32Array([0,0,0,0.35]), [0,1,0]);
     }
   }
 }
 
-// ── Helpers UI ──
-function setSt(txt, col) {
-  const s = document.getElementById('status');
-  s.textContent = txt; s.style.color = col || '#fff';
-}
-function showHint(txt) {
-  const h = document.getElementById('hint');
-  h.textContent = txt; h.style.display = 'block';
-}
-function hideHint() { document.getElementById('hint').style.display = 'none'; }
-function show(id) { document.getElementById(id).style.display = 'block'; }
-function hide(id) { document.getElementById(id).style.display = 'none'; }
+// ═══════════════════════════════
+//  Helpers UI
+// ═══════════════════════════════
+function setSt(t,c){ const s=document.getElementById('status'); s.textContent=t; s.style.color=c||'#fff'; }
+function showHint(t){ const h=document.getElementById('hint'); h.textContent=t; h.style.display='block'; }
+function hideHint(){ document.getElementById('hint').style.display='none'; }
+function show(id){ document.getElementById(id).style.display='block'; }
+function hide(id){ document.getElementById(id).style.display='none'; }
+function showEl(id){ document.getElementById(id).style.display='block'; }
+function hideEl(id){ document.getElementById(id).style.display='none'; }
 </script>
 </body>
 </html>
