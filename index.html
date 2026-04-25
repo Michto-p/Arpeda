@@ -3,579 +3,1523 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>AR Cubes v6.0</title>
+<title>ÉlecStudio AR</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Nunito:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0f172a;color:#fff;font-family:sans-serif;overflow:hidden;height:100vh}
+:root{
+  --bg:#0d1117;--sur:#161b22;--bor:#30363d;
+  --ac:#2563eb;--acl:#1d3461;--acd:#1d4ed8;
+  --ok:#22c55e;--wn:#f59e0b;--er:#ef4444;
+  --mid:#8b949e;--txt:#e6edf3;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;width:100%;overflow:hidden;font-family:'Nunito',sans-serif;
+  background:var(--bg);color:var(--txt);user-select:none}
+
+/* ── HOME ── */
 #home{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  height:100vh;gap:20px;padding:32px;text-align:center}
-h1{font-size:2rem;color:#60a5fa;font-weight:800}
-p{color:rgba(255,255,255,.6);font-size:.85rem;line-height:1.8;max-width:280px}
-#startBtn{padding:16px 40px;border-radius:30px;border:none;background:#2563eb;
-  color:#fff;font-size:1rem;font-weight:700;cursor:pointer}
-#startBtn:active{transform:scale(.96)}
+  height:100vh;gap:22px;padding:28px;text-align:center}
+.home-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:2.2rem;color:var(--txt)}
+.home-logo span{color:#60a5fa}
+.home-sub{font-size:.78rem;color:var(--mid);line-height:1.8;max-width:280px}
+.home-btn{padding:16px 44px;border-radius:32px;border:none;background:var(--ac);
+  color:#fff;font-size:1rem;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 24px rgba(37,99,235,.45);width:100%;max-width:280px}
+.home-btn:active{transform:scale(.97)}
 
-#hud{position:fixed;inset:0;z-index:99;pointer-events:none;display:none}
-#topbar{position:absolute;top:0;left:0;right:0;padding:10px 14px;
-  background:rgba(0,0,0,.72);font-size:.7rem;font-family:monospace;line-height:2}
-#status{color:#fbbf24}
-#info{color:#94a3b8}
+/* ── WIZARD ── */
+#wizard{display:none;flex-direction:column;height:100vh}
+/* Steps bar */
+.steps{display:flex;background:var(--sur);border-bottom:1px solid var(--bor);
+  overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+.steps::-webkit-scrollbar{display:none}
+.step{display:flex;flex-direction:column;align-items:center;padding:8px 14px;
+  gap:3px;flex-shrink:0;cursor:pointer;position:relative;min-width:70px}
+.step::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:transparent;transition:background .2s}
+.step.on::after{background:var(--ac)}
+.step-ico{font-size:1.2rem;line-height:1}
+.step-lbl{font-size:.55rem;font-weight:700;color:var(--mid);font-family:'Syne',sans-serif;
+  letter-spacing:.3px;text-transform:uppercase}
+.step.on .step-lbl{color:var(--ac)}
+.step.done .step-lbl{color:var(--ok)}
+.step.done::after{background:var(--ok)}
+/* Content */
+.wcon{flex:1;overflow:hidden;position:relative}
+.wscreen{position:absolute;inset:0;display:flex;flex-direction:column} .wscreen.off{display:none}
 
-/* Réticule central fixe */
+/* ── CANVAS SCREENS ── */
+.cswrap{flex:1;position:relative;overflow:hidden;background:#1a2233;touch-action:none}
+canvas.main{display:block;touch-action:none;width:100%;height:100%}
+
+/* ── BOTTOM PANEL ── */
+.bpanel{background:var(--sur);border-top:1px solid var(--bor);flex-shrink:0}
+/* Toolbar */
+.toolbar{display:flex;align-items:center;gap:6px;padding:8px 12px}
+.tbtn{min-width:36px;height:36px;border-radius:9px;border:1.5px solid var(--bor);
+  background:transparent;color:var(--txt);font-size:.88rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0 8px;
+  font-family:'Nunito',sans-serif;font-weight:700;font-size:.75rem;gap:4px}
+.tbtn:active{background:var(--bor)}
+.tbtn.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.tbtn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.tbtn.er{background:var(--er);border-color:var(--er);color:#fff}
+.tsep{width:1px;height:28px;background:var(--bor);flex-shrink:0}
+.tsp{flex:1}
+/* Hint bar */
+.hint{padding:6px 12px 8px;font-size:.68rem;color:var(--mid);line-height:1.5;
+  border-top:1px solid var(--bor)}
+
+/* ── ELEMENT DRAWER ── */
+.drawer{background:var(--sur);border-top:1px solid var(--bor);
+  transform:translateY(100%);transition:transform .28s ease;flex-shrink:0}
+.drawer.open{transform:translateY(0)}
+.drawer-grip{display:flex;align-items:center;justify-content:space-between;
+  padding:9px 12px;cursor:pointer}
+.drawer-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.78rem}
+.drawer-arr{color:var(--mid);font-size:.75rem;transition:transform .22s}
+.drawer.open .drawer-arr{transform:rotate(180deg)}
+.drawer-scroll{display:flex;overflow-x:auto;gap:7px;padding:6px 12px 12px;scrollbar-width:none}
+.drawer-scroll::-webkit-scrollbar{display:none}
+.dcard{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:62px;
+  padding:8px 6px;border-radius:10px;border:1.5px solid var(--bor);background:var(--bg);
+  cursor:pointer;flex-shrink:0;touch-action:none}
+.dcard:active{border-color:var(--ac);background:var(--acl)}
+.dcard.on{border-color:var(--ac);background:var(--acl)}
+.dcard-ico{font-size:1.3rem;line-height:1}
+.dcard-lbl{font-size:.56rem;font-weight:700;color:var(--mid);text-align:center;line-height:1.2}
+.dsep{width:1px;height:44px;background:var(--bor);flex-shrink:0;align-self:center}
+
+/* ── AR SCREEN ── */
+#scrAR{background:#000;position:relative}
+#arCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.ar-hud{position:absolute;inset:0;z-index:99;pointer-events:none}
+.ar-topbar{position:absolute;top:0;left:0;right:0;padding:10px 14px;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));
+  background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);
+  display:flex;align-items:center;gap:7px;pointer-events:all}
+.ar-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:.82rem}
+.ar-logo span{color:#60a5fa}
+.ar-sp{flex:1}
+.ahb{padding:4px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.18);
+  background:rgba(0,0,0,.45);color:rgba(255,255,255,.85);font-family:'Nunito',sans-serif;
+  font-size:.67rem;font-weight:700;cursor:pointer}
+.ahb.on{background:rgba(37,99,235,.55);border-color:rgba(96,165,250,.6)}
+.ar-status{position:absolute;top:52px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.12);border-radius:20px;
+  padding:5px 14px;font-size:.68rem;display:flex;align-items:center;gap:6px;
+  white-space:nowrap;pointer-events:none}
+.sdt{width:7px;height:7px;border-radius:50%}
+.sdt.scan{background:#f59e0b;animation:pd 1.3s infinite}
+.sdt.ok{background:#22c55e;animation:pd 1.3s infinite}
+.sdt.go{background:#60a5fa;animation:none}
+@keyframes pd{0%,100%{opacity:.35}50%{opacity:1}}
+/* Réticule */
 #xhair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:44px;height:44px;pointer-events:none}
+  width:42px;height:42px;pointer-events:none}
 #xhair::before,#xhair::after{content:'';position:absolute;background:rgba(255,255,255,.75);border-radius:1px}
-#xhair::before{width:1.5px;height:22px;left:21px;top:11px}
-#xhair::after{width:22px;height:1.5px;left:11px;top:21px}
-.xring{position:absolute;inset:0;border:1.5px solid rgba(255,255,255,.4);border-radius:50%}
-.xring.hit{border-color:#34d399}
-.xring.grab{border-color:#a78bfa}
+#xhair::before{width:1.5px;height:20px;left:20px;top:11px}
+#xhair::after{width:20px;height:1.5px;left:11px;top:20px}
+#xring{position:absolute;inset:0;border:1.5px solid rgba(255,255,255,.4);border-radius:50%;transition:border-color .15s}
+#xring.hit{border-color:#22c55e}
+#xring.aim{border-color:#a78bfa}
 
-#actions{position:absolute;bottom:24px;left:0;right:0;
-  display:flex;justify-content:center;gap:8px;pointer-events:all}
-.btn{padding:11px 20px;border-radius:22px;border:none;color:#fff;
-  font-size:.82rem;font-weight:700;cursor:pointer;
-  box-shadow:0 2px 10px rgba(0,0,0,.4)}
-.btn:active{transform:scale(.95)}
-#btnAdd   {background:#2563eb}
-#btnGrab  {background:#7c3aed;display:none}
-#btnDrop  {background:#059669;display:none}
-#btnDel   {background:#dc2626;display:none}
-#btnClear {background:rgba(80,80,100,.8);border:1px solid rgba(255,255,255,.2);display:none}
+/* Légende zones */
+.ar-legend{position:absolute;top:88px;right:10px;background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;
+  font-size:.62rem;pointer-events:none}
+.ll{display:flex;align-items:center;gap:6px;padding:2px 0}
+.ld{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* Info panel */
+.ar-info{position:absolute;bottom:80px;left:10px;background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;
+  font-size:.62rem;min-width:140px;pointer-events:none;font-family:'JetBrains Mono',monospace}
+.ar-info div{color:rgba(255,255,255,.4);margin-bottom:3px;font-size:.55rem;text-transform:uppercase;letter-spacing:.6px}
+
+/* AR bottom */
+.ar-bot{position:absolute;bottom:0;left:0;right:0;padding:8px 10px;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(to top,rgba(0,0,0,.75),transparent);
+  display:flex;gap:6px;pointer-events:all}
+.ar-bot .ahb{flex:1;text-align:center;padding:10px 4px}
+
+/* Volume info */
+.vol-box{position:absolute;bottom:80px;right:10px;background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px 11px;
+  font-size:.62rem;min-width:148px;pointer-events:none}
+.vt{font-family:'JetBrains Mono',monospace;font-size:.54rem;color:rgba(255,255,255,.4);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.vr{display:flex;justify-content:space-between;gap:6px;padding:2px 0;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.vr:last-child{border:none}
+.vk{color:rgba(255,255,255,.42);font-size:.58rem}
+.vv{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.58rem}
+
+/* Prop sheet */
+.propsheet{position:absolute;top:0;right:0;bottom:0;width:min(240px,85%);
+  background:var(--sur);border-left:1px solid var(--bor);z-index:20;
+  transform:translateX(100%);transition:transform .25s ease;overflow-y:auto;padding:12px}
+.propsheet.open{transform:translateX(0)}
+.ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pt{font-family:'Syne',sans-serif;font-weight:800;font-size:.85rem}
+.px{width:26px;height:26px;border-radius:6px;border:1px solid var(--bor);
+  background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pf{margin-bottom:8px}
+.pf label{display:block;font-size:.6rem;font-weight:700;color:var(--mid);
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.pf input,.pf select{width:100%;padding:6px 8px;border:1.5px solid var(--bor);
+  border-radius:7px;font-size:.76rem;font-family:'Nunito',sans-serif;
+  background:var(--bg);color:var(--txt);outline:none}
+.pf input:focus,.pf select:focus{border-color:var(--ac)}
+.stbadge{padding:5px 9px;border-radius:7px;font-size:.68rem;font-weight:700;margin-top:6px}
+.stbadge.ok{background:rgba(34,197,94,.15);color:#22c55e}
+.stbadge.wn{background:rgba(245,158,11,.15);color:#f59e0b}
+.stbadge.er{background:rgba(239,68,68,.15);color:#ef4444}
+.delbtn{width:100%;padding:7px;border-radius:7px;border:none;
+  background:rgba(239,68,68,.12);color:#ef4444;font-weight:700;font-size:.72rem;
+  cursor:pointer;margin-top:7px}
 </style>
 </head>
 <body>
 
+<!-- ══ HOME ══ -->
 <div id="home">
-  <h1>AR Cubes · v6.0</h1>
-  <p>Pose plusieurs cubes.<br>Pointe vers un cube pour le sélectionner.<br>Attrape-le et déplace-le.</p>
-  <button id="startBtn" onclick="startAR()">📷 Lancer la RA</button>
+  <div class="home-logo">Élec<span>Studio</span></div>
+  <div class="home-sub">Créez votre salle de bain étape par étape, visualisez en réalité augmentée avec les zones NF C 15-100.</div>
+  <button class="home-btn" onclick="showWizard()">✦ Créer une scène</button>
+  <button class="home-btn" style="background:transparent;border:1.5px solid var(--bor);margin-top:-8px" onclick="startAR()">📷 Voir en RA</button>
 </div>
 
-<div id="hud">
-  <div id="topbar">
-    <div><b>AR Cubes v6.0</b> — <span id="status">…</span></div>
-    <div id="info">cubes: 0 | sélectionné: aucun</div>
+<!-- ══ WIZARD ══ -->
+<div id="wizard">
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step on"  data-s="0" onclick="goStep(0)"><span class="step-ico">🏠</span><span class="step-lbl">Murs</span></div>
+    <div class="step"     data-s="1" onclick="goStep(1)"><span class="step-ico">🚪</span><span class="step-lbl">Ouvertures</span></div>
+    <div class="step"     data-s="2" onclick="goStep(2)"><span class="step-ico">🛁</span><span class="step-lbl">Sanitaires</span></div>
+    <div class="step"     data-s="3" onclick="goStep(3)"><span class="step-ico">🔌</span><span class="step-lbl">Électrique</span></div>
+    <div class="step"     data-s="4" onclick="goStep(4)"><span class="step-ico">📋</span><span class="step-lbl">Normes</span></div>
+    <div class="step"     data-s="5" onclick="startAR()"><span class="step-ico">📷</span><span class="step-lbl">RA Live</span></div>
   </div>
-  <div id="xhair"><div class="xring" id="ring"></div></div>
-  <div id="actions">
-    <button class="btn" id="btnAdd"   onclick="addCube()">＋ Ajouter cube</button>
-    <button class="btn" id="btnGrab"  onclick="grabCube()">✋ Attraper</button>
-    <button class="btn" id="btnDrop"  onclick="dropCube()">📌 Déposer</button>
-    <button class="btn" id="btnDel"   onclick="delCube()">🗑</button>
-    <button class="btn" id="btnClear" onclick="clearAll()">✕ Tout effacer</button>
+
+  <div class="wcon">
+
+    <!-- ══ ÉTAPE 0 : MURS ══ -->
+    <div class="wscreen" id="s0">
+      <div class="cswrap" id="drawWrap">
+        <canvas id="cvDraw" class="main"></canvas>
+      </div>
+      <div class="bpanel">
+        <div class="toolbar">
+          <button class="tbtn on" id="tPoly" onclick="setDrawTool('poly')">✏️ Tracer</button>
+          <button class="tbtn"    id="tRect" onclick="setDrawTool('rect')">⬜ Rect.</button>
+          <button class="tbtn"    id="tMove" onclick="setDrawTool('move')">🤚 Déplacer</button>
+          <div class="tsep"></div>
+          <button class="tbtn" onclick="undoDraw()">↩</button>
+          <button class="tbtn" onclick="clearWalls()">🗑</button>
+          <div class="tsp"></div>
+          <button class="tbtn" style="background:var(--ac);border-color:var(--ac);color:#fff" onclick="goStep(1)">Suivant →</button>
+        </div>
+        <div class="hint" id="hintDraw">Tracez la forme de la pièce. Cliquez pour poser les coins — double-clic pour fermer.</div>
+      </div>
+    </div>
+
+    <!-- ══ ÉTAPE 1 : OUVERTURES ══ -->
+    <div class="wscreen off" id="s1">
+      <div class="cswrap" id="openWrap">
+        <canvas id="cvOpen" class="main"></canvas>
+      </div>
+      <div class="bpanel">
+        <div class="toolbar">
+          <button class="tbtn on" id="tDoor"   onclick="setOpenTool('door')">🚪 Porte</button>
+          <button class="tbtn"    id="tWindow" onclick="setOpenTool('window')">🪟 Fenêtre</button>
+          <div class="tsep"></div>
+          <div style="font-size:.72rem;color:var(--mid)">L:</div>
+          <input id="openW" type="number" value="0.80" step="0.05" min="0.3" max="2.5"
+            style="width:58px;padding:5px 7px;border:1.5px solid var(--bor);border-radius:7px;
+            background:var(--bg);color:var(--txt);font-size:.75rem;font-family:Nunito,sans-serif">
+          <div style="font-size:.62rem;color:var(--mid)">m</div>
+          <div class="tsep"></div>
+          <button class="tbtn" onclick="undoOpen()">↩</button>
+          <div class="tsp"></div>
+          <button class="tbtn" onclick="goStep(0)">← Retour</button>
+          <button class="tbtn" style="background:var(--ac);border-color:var(--ac);color:#fff" onclick="goStep(2)">Suivant →</button>
+        </div>
+        <div class="hint">Cliquez sur un mur pour y placer une ouverture.</div>
+      </div>
+    </div>
+
+    <!-- ══ ÉTAPE 2 : SANITAIRES ══ -->
+    <div class="wscreen off" id="s2">
+      <div class="cswrap" id="sanWrap">
+        <canvas id="cvSan" class="main"></canvas>
+      </div>
+      <div class="bpanel">
+        <div class="toolbar">
+          <button class="tbtn on" id="tSanMove" onclick="setSanTool('move')">🤚 Déplacer</button>
+          <button class="tbtn"    id="tSanRot"  onclick="setSanTool('rot')">↻ Pivoter</button>
+          <div class="tsp"></div>
+          <button class="tbtn" onclick="goStep(1)">← Retour</button>
+          <button class="tbtn" style="background:var(--ac);border-color:var(--ac);color:#fff" onclick="goStep(3)">Suivant →</button>
+        </div>
+        <div class="drawer" id="sanDrawer">
+          <div class="drawer-grip" onclick="toggleDrawer('san')">
+            <span class="drawer-title">Équipements sanitaires</span>
+            <span class="drawer-arr">▲</span>
+          </div>
+          <div class="drawer-scroll" id="sanScroll">
+            <div class="dcard" data-type="baignoire"  onclick="addSan('baignoire')"><span class="dcard-ico">🛁</span><span class="dcard-lbl">Baignoire</span></div>
+            <div class="dcard" data-type="douche_it"  onclick="addSan('douche_it')"><span class="dcard-ico">🚿</span><span class="dcard-lbl">Douche ital.</span></div>
+            <div class="dcard" data-type="douche_cab" onclick="addSan('douche_cab')"><span class="dcard-ico">🚿</span><span class="dcard-lbl">Cabine douche</span></div>
+            <div class="dcard" data-type="lavabo"     onclick="addSan('lavabo')"><span class="dcard-ico">🪣</span><span class="dcard-lbl">Lavabo</span></div>
+            <div class="dcard" data-type="vasque"     onclick="addSan('vasque')"><span class="dcard-ico">🪣</span><span class="dcard-lbl">Vasque</span></div>
+            <div class="dcard" data-type="wc"         onclick="addSan('wc')"><span class="dcard-ico">🚽</span><span class="dcard-lbl">WC</span></div>
+            <div class="dcard" data-type="bidet"      onclick="addSan('bidet')"><span class="dcard-ico">🚽</span><span class="dcard-lbl">Bidet</span></div>
+            <div class="dcard" data-type="balneo"     onclick="addSan('balneo')"><span class="dcard-ico">🛁</span><span class="dcard-lbl">Balnéo</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ÉTAPE 3 : ÉLECTRIQUE ══ -->
+    <div class="wscreen off" id="s3">
+      <div class="cswrap" id="elWrap">
+        <canvas id="cvEl" class="main"></canvas>
+      </div>
+      <div class="bpanel">
+        <div class="toolbar">
+          <button class="tbtn on" id="tElMove" onclick="setElTool('move')">🤚 Déplacer</button>
+          <div class="tsp"></div>
+          <button class="tbtn" onclick="goStep(2)">← Retour</button>
+          <button class="tbtn" style="background:var(--ac);border-color:var(--ac);color:#fff" onclick="goStep(4)">Normes →</button>
+        </div>
+        <div class="drawer" id="elDrawer">
+          <div class="drawer-grip" onclick="toggleDrawer('el')">
+            <span class="drawer-title">Appareillage électrique</span>
+            <span class="drawer-arr">▲</span>
+          </div>
+          <div class="drawer-scroll" id="elScroll">
+            <div class="dcard" onclick="addEl('dcl')"><span class="dcard-ico">🔵</span><span class="dcard-lbl">DCL</span></div>
+            <div class="dcard" onclick="addEl('spot')"><span class="dcard-ico">💡</span><span class="dcard-lbl">Spot</span></div>
+            <div class="dcard" onclick="addEl('applique')"><span class="dcard-ico">🔦</span><span class="dcard-lbl">Applique</span></div>
+            <div class="dcard" onclick="addEl('hublot')"><span class="dcard-ico">⭕</span><span class="dcard-lbl">Hublot</span></div>
+            <div class="dsep"></div>
+            <div class="dcard" onclick="addEl('prise')"><span class="dcard-ico">🔌</span><span class="dcard-lbl">Prise 16A</span></div>
+            <div class="dcard" onclick="addEl('inter')"><span class="dcard-ico">🔆</span><span class="dcard-lbl">Inter.</span></div>
+            <div class="dcard" onclick="addEl('seche')"><span class="dcard-ico">♨️</span><span class="dcard-lbl">Sèche-s.</span></div>
+            <div class="dcard" onclick="addEl('vmc')"><span class="dcard-ico">🌀</span><span class="dcard-lbl">VMC</span></div>
+            <div class="dcard" onclick="addEl('tableau')"><span class="dcard-ico">⚡</span><span class="dcard-lbl">Tableau</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- Prop sheet électrique -->
+      <div class="propsheet" id="elProp">
+        <div class="ph">
+          <span class="pt" id="elPropTitle">Propriétés</span>
+          <div class="px" onclick="closeElProp()">✕</div>
+        </div>
+        <div id="elPropBody"></div>
+      </div>
+    </div>
+
+    <!-- ══ ÉTAPE 4 : NORMES ══ -->
+    <div class="wscreen off" id="s4">
+      <div style="flex:1;overflow-y:auto;padding:14px;background:var(--bg)">
+        <div id="normContent"></div>
+      </div>
+      <div class="bpanel">
+        <div class="toolbar">
+          <button class="tbtn" onclick="goStep(3)">← Retour</button>
+          <div class="tsp"></div>
+          <button class="tbtn" style="background:var(--ac);border-color:var(--ac);color:#fff" onclick="startAR()">📷 Voir en RA</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- wcon -->
+</div><!-- wizard -->
+
+<!-- ══ AR SCREEN ══ -->
+<div id="scrAR" style="display:none;position:fixed;inset:0;background:#000;z-index:200">
+  <canvas id="arCanvas"></canvas>
+  <div class="ar-hud">
+    <div class="ar-topbar">
+      <div class="ar-logo">Élec<span>Studio</span> <span style="font-size:.52rem;opacity:.3;font-family:'JetBrains Mono',monospace">RA v1.0</span></div>
+      <div class="ar-sp"></div>
+      <button class="ahb on" id="bZ" onclick="toggleARLyr('zones')">🌡</button>
+      <button class="ahb on" id="bE" onclick="toggleARLyr('elec')">⚡</button>
+      <button class="ahb on" id="bW" onclick="toggleARLyr('walls')">🏠</button>
+      <button class="ahb" onclick="resetARScene()">⊙</button>
+      <button class="ahb" onclick="closeAR()">✕</button>
+    </div>
+    <div class="ar-status"><span class="sdt scan" id="arDot"></span><span id="arSt">Initialisation…</span></div>
+    <div id="xhair"><div id="xring"></div></div>
+    <div class="ar-legend">
+      <div class="ll"><div class="ld" style="background:rgba(220,38,38,.8)"></div>Zone 0</div>
+      <div class="ll"><div class="ld" style="background:rgba(245,158,11,.75)"></div>Zone 1 ≤60cm</div>
+      <div class="ll"><div class="ld" style="background:rgba(37,99,235,.7)"></div>Zone 2 ≤120cm</div>
+    </div>
+    <div class="ar-info" id="arInfo"><div>Position caméra</div><span id="arInfoTxt">—</span></div>
+    <div class="vol-box" id="arVol"></div>
+    <div class="ar-bot">
+      <button class="ahb" onclick="closeAR()">← Plan</button>
+      <button class="ahb" id="arPlaceBtn" onclick="arPlaceScene()">📍 Ancrer ici</button>
+      <button class="ahb" onclick="arReanchor()">⊙ Replacer</button>
+      <button class="ahb" onclick="arRotate(15)">↻ Rot.</button>
+    </div>
   </div>
 </div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════
-//  ÉTAT
-// ═══════════════════════════════════════════
-let ses, ref, hitSrc;
-let gl, progCube, progLine;
-let glCube, glReticle, glGrid;
-
-// Liste des cubes posés
-// { id, x, y, z, ry }
-let cubes = [];
-let nextId = 0;
-
-// Cube actuellement sélectionné (index dans cubes[])
-let selIdx = -1;   // -1 = aucun
-let grabbed = false;
-
-// Hit-test courant
-let hitX=0, hitY=0, hitZ=0, hitOK=false;
-
-// Sélection par visée — quel cube est dans la ligne de mire
-let aimIdx = -1;   // index du cube visé (-1 = aucun)
-
-let frameN = 0;
-
-// ═══════════════════════════════════════════
-//  DÉMARRAGE
-// ═══════════════════════════════════════════
-async function startAR() {
-  if (!navigator.xr) { alert('WebXR non disponible'); return; }
-  try {
-    ses = await navigator.xr.requestSession('immersive-ar', {
-      requiredFeatures: ['hit-test'],
-      optionalFeatures: ['dom-overlay','local-floor'],
-      domOverlay: { root: document.body }
-    });
-  } catch(e) { alert('Erreur AR:\n'+e.message); return; }
-
-  document.getElementById('home').style.display = 'none';
-  document.getElementById('hud').style.display  = 'block';
-  setSt('Calibration…','#fbbf24');
-
-  ses.addEventListener('end', onEnd);
-  // Tap = sélectionner ou confirmer
-  ses.addEventListener('select', onTap);
-
-  const cv = document.createElement('canvas');
-  cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none';
-  document.body.appendChild(cv);
-  gl = cv.getContext('webgl', { xrCompatible:true, alpha:true });
-  await gl.makeXRCompatible();
-  ses.updateRenderState({ baseLayer: new XRWebGLLayer(ses, gl) });
-
-  try       { ref = await ses.requestReferenceSpace('local-floor'); }
-  catch (e) { ref = await ses.requestReferenceSpace('local'); }
-
-  await launchHit();
-  buildGL();
-  ses.requestAnimationFrame(loop);
-}
-
-function onEnd() {
-  document.getElementById('home').style.display = 'flex';
-  document.getElementById('hud').style.display  = 'none';
-  cubes=[]; selIdx=-1; grabbed=false;
-}
-
-// ─── Hit-test ───
-async function launchHit() {
-  const vs = await ses.requestReferenceSpace('viewer');
-  hitSrc = await ses.requestHitTestSource({ space: vs });
-}
-function stopHit() {
-  if (hitSrc) { try{hitSrc.cancel();}catch{} hitSrc=null; }
-}
-
-// ═══════════════════════════════════════════
-//  ACTIONS
-// ═══════════════════════════════════════════
-function onTap() {
-  if (grabbed) {
-    dropCube();
-  } else if (aimIdx >= 0) {
-    // Sélectionner le cube visé
-    selIdx = aimIdx;
-    updateUI();
-  } else {
-    addCube();
-  }
-}
-
-function addCube() {
-  if (!hitOK) { setSt('Pointez une surface','#fbbf24'); return; }
-  cubes.push({ id: nextId++, x:hitX, y:hitY, z:hitZ, ry:0 });
-  selIdx = cubes.length - 1;
-  setSt(`Cube #${cubes[selIdx].id} posé`,'#34d399');
-  updateUI();
-}
-
-function grabCube() {
-  if (selIdx < 0) return;
-  grabbed = true;
-  // Garder le hit-test actif pour déplacer
-  if (!hitSrc) launchHit();
-  setSt(`Cube #${cubes[selIdx].id} saisi — bougez le téléphone`,'#a78bfa');
-  updateUI();
-}
-
-function dropCube() {
-  if (!grabbed || selIdx < 0) return;
-  if (hitOK) {
-    cubes[selIdx].x = hitX;
-    cubes[selIdx].y = hitY;
-    cubes[selIdx].z = hitZ;
-  }
-  grabbed = false;
-  stopHit();
-  // Relancer pour continuer à viser
-  launchHit();
-  setSt(`Cube #${cubes[selIdx].id} déposé`,'#34d399');
-  updateUI();
-}
-
-function delCube() {
-  if (selIdx < 0) return;
-  cubes.splice(selIdx, 1);
-  selIdx = -1;
-  setSt('Cube supprimé','#f87171');
-  updateUI();
-}
-
-function clearAll() {
-  cubes=[]; selIdx=-1; grabbed=false;
-  setSt('Tout effacé','#94a3b8');
-  updateUI();
-}
-
-function updateUI() {
-  const hasSel = selIdx >= 0 && selIdx < cubes.length;
-  show('btnAdd');
-  tog('btnGrab',  hasSel && !grabbed);
-  tog('btnDrop',  grabbed);
-  tog('btnDel',   hasSel && !grabbed);
-  tog('btnClear', cubes.length > 0 && !grabbed);
-  const selName = hasSel ? `#${cubes[selIdx].id}` : 'aucun';
-  document.getElementById('info').textContent =
-    `cubes: ${cubes.length} | sélectionné: ${selName}${grabbed?' (saisi)':''}`;
-}
-
-// ═══════════════════════════════════════════
-//  MATRICES — column-major correct
-// ═══════════════════════════════════════════
-const M = {
-  id() { return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); },
-
-  // Multiplication column-major (WebGL standard)
-  mul(a, b) {
-    const o = new Float32Array(16);
-    for (let col=0; col<4; col++)
-      for (let row=0; row<4; row++)
-        for (let k=0; k<4; k++)
-          o[col*4+row] += a[k*4+row] * b[col*4+k];
-    return o;
-  },
-
-  translate(x, y, z) {
-    const m = M.id();
-    // Colonne 3 = translation en column-major
-    m[12]=x; m[13]=y; m[14]=z;
-    return m;
-  },
-
-  rotY(a) {
-    const c=Math.cos(a), s=Math.sin(a);
-    const m = M.id();
-    // Column-major rotY:
-    // col0: [c, 0,-s, 0]
-    // col2: [s, 0, c, 0]
-    m[0]=c;  m[8]=s;
-    m[2]=-s; m[10]=c;
-    return m;
-  },
-
-  scale(x, y, z) {
-    const m = M.id();
-    m[0]=x; m[5]=y; m[10]=z;
-    return m;
-  },
-
-  // MVP = proj × view × model
-  mvp(proj, view, model) {
-    return M.mul(M.mul(proj, view), model);
-  }
+// ══════════════════════════════════════════════
+//  CATALOGUE
+// ══════════════════════════════════════════════
+const CAT_SAN = {
+  baignoire: {label:'Baignoire',       ico:'🛁', w:1.70,d:.75, h3:.55, water:true, zR:{z1:.60,z2:1.20}},
+  douche_it: {label:'Douche ital.',    ico:'🚿', w:.90, d:.90, h3:.01, water:true, zR:{z1:.60,z2:1.20}},
+  douche_cab:{label:'Cabine douche',   ico:'🚿', w:.90, d:.90, h3:.01, water:true, zR:{z1:.60,z2:1.20}},
+  lavabo:    {label:'Lavabo',          ico:'🪣', w:.60, d:.50, h3:.85, water:true, zR:{z1:.40,z2:.60}},
+  vasque:    {label:'Vasque',          ico:'🪣', w:.50, d:.45, h3:.85, water:true, zR:{z1:.40,z2:.60}},
+  wc:        {label:'WC',              ico:'🚽', w:.38, d:.65, h3:.78, water:false},
+  bidet:     {label:'Bidet',           ico:'🚽', w:.35, d:.55, h3:.40, water:false},
+  balneo:    {label:'Balnéo',          ico:'🛁', w:1.80,d:.90, h3:.55, water:true, zR:{z1:.60,z2:1.20}},
+};
+const CAT_EL = {
+  dcl:     {label:'DCL plafond',    ico:'🔵', zones:[0,1,2,'hors'],minH:2.20,ip:'IP44',cl:'II'},
+  spot:    {label:'Spot encastré',  ico:'💡', zones:[0,1,2,'hors'],minH:2.00,ip:'IP44',cl:'II'},
+  applique:{label:'Applique',       ico:'🔦', zones:[2,'hors'],    minH:2.25,ip:'IP44',cl:'II'},
+  hublot:  {label:'Hublot',         ico:'⭕', zones:[1,2,'hors'],  minH:2.00,ip:'IP44',cl:'II'},
+  prise:   {label:'Prise 16A',      ico:'🔌', zones:['hors'],minDist:120,minH:.95,maxH:1.30,ip:'IP21',cl:'II'},
+  inter:   {label:'Interrupteur',   ico:'🔆', zones:['hors'],minDist:60, minH:.90,maxH:1.30,ip:'IP21',cl:'II'},
+  seche:   {label:'Sèche-serviette',ico:'♨️', zones:[1,2],         minH:.30, ip:'IP44',cl:'II'},
+  vmc:     {label:'VMC',            ico:'🌀', zones:[0,1,2,'hors'],minH:2.20,ip:'IP45',cl:'II'},
+  tableau: {label:'Tableau élec.',  ico:'⚡', zones:['hors'],minDist:120,ip:'IP21',cl:'II'},
 };
 
-// ═══════════════════════════════════════════
-//  SÉLECTION PAR VISÉE
-//  Calcule quel cube est le plus proche du
-//  centre de l'écran (rayon depuis la caméra)
-// ═══════════════════════════════════════════
-function updateAim(camPos, camFwd) {
-  // Pour chaque cube, calcule la distance angulaire
-  // entre la direction caméra et le vecteur caméra→cube
-  let best = -1, bestDot = 0.94; // cos(~20°) = seuil de sélection
+// ══════════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ══════════════════════════════════════════════
+const SC = {
+  walls: [],       // [{pts:[{x,y},...],closed:bool}]
+  openings: [],    // [{type,wi,si,t,w}]
+  sanitaires: [],  // [{id,type,x,y,ry}]
+  electrique: [],  // [{id,type,x,y,h,ip,cl}]
+  roomH: 2.50,
+  matWall: 'carrelage',
+  matFloor: 'antiderapant',
+  idSeq: 0,
+};
 
-  for (let i=0; i<cubes.length; i++) {
-    const c = cubes[i];
-    // Vecteur caméra → cube (normalisé)
-    const dx = c.x - camPos[0];
-    const dy = (c.y+0.10) - camPos[1]; // centre du cube
-    const dz = c.z - camPos[2];
-    const len = Math.sqrt(dx*dx+dy*dy+dz*dz);
-    if (len < 0.01) continue;
-    const dot = (dx*camFwd[0] + dy*camFwd[1] + dz*camFwd[2]) / len;
-    if (dot > bestDot) { bestDot=dot; best=i; }
-  }
-  return best;
+// Outils
+let drawTool='poly', openTool='door', sanTool='move', elTool='move';
+let curStep = 0;
+let curPoly = [];
+let dMouse = {x:0,y:0};
+let selSanId = -1, selElId = -1;
+let drawerOpen = {san:true, el:true};
+
+// ══════════════════════════════════════════════
+//  NAVIGATION WIZARD
+// ══════════════════════════════════════════════
+function showWizard() {
+  document.getElementById('home').style.display   = 'none';
+  document.getElementById('wizard').style.display = 'flex';
+  goStep(0);
 }
 
-// ═══════════════════════════════════════════
-//  WEBGL
-// ═══════════════════════════════════════════
-function buildGL() {
-  // Prog cube : pos + couleur par face
-  progCube = mkProg(`
-    attribute vec3 aPos;
-    attribute vec3 aCol;
-    attribute vec3 aNorm;
-    uniform mat4 uMVP;
-    uniform mat4 uM;
-    varying vec3 vCol;
-    varying vec3 vNorm;
-    void main(){
-      gl_Position = uMVP * vec4(aPos,1.0);
-      vNorm = normalize(vec3(uM * vec4(aNorm,0.0)));
-      vCol  = aCol;
-    }
-  `,`
-    precision mediump float;
-    varying vec3 vCol;
-    varying vec3 vNorm;
-    uniform float uSel; // 0=normal 1=selected 2=aimed
-    void main(){
-      // Éclairage directionnel simple
-      vec3 L = normalize(vec3(0.8,1.5,0.6));
-      float d = max(dot(vNorm,L),0.0)*0.65 + 0.35;
-      vec3 col = vCol * d;
-      // Surbrillance sélection
-      if (uSel > 1.5) col = mix(col, vec3(0.8,0.5,1.0), 0.5); // violet = visé
-      if (uSel > 0.5 && uSel < 1.5) col = mix(col, vec3(1.0,0.85,0.2), 0.4); // jaune = sélectionné
-      gl_FragColor = vec4(col,1.0);
-    }
-  `);
+function goStep(n) {
+  curStep = n;
+  for(let i=0;i<6;i++){
+    const sc=document.getElementById('s'+i);
+    if(sc) sc.classList.toggle('off', i!==n);
+    const st=document.querySelector(`.step[data-s="${i}"]`);
+    if(st){ st.classList.toggle('on',i===n); }
+  }
+  if(n===0){ setTimeout(initDraw,40); }
+  if(n===1){ setTimeout(initOpen,40); }
+  if(n===2){ setTimeout(initSan,40); }
+  if(n===3){ setTimeout(initEl,40); }
+  if(n===4){ renderNorms(); }
+}
 
-  // Prog lignes : couleur uniforme
-  progLine = mkProg(`
-    attribute vec3 aPos;
-    uniform mat4 uMVP;
-    void main(){ gl_Position = uMVP * vec4(aPos,1.0); }
-  `,`
-    precision mediump float;
-    uniform vec4 uCol;
-    void main(){ gl_FragColor = uCol; }
-  `);
+// ══════════════════════════════════════════════
+//  HELPERS CANVAS
+// ══════════════════════════════════════════════
+let scales={draw:{sc:80,px:30,py:30},open:{sc:80,px:30,py:30},
+            san:{sc:80,px:30,py:30},el:{sc:80,px:30,py:30}};
 
-  // Géométrie cube 20cm
-  const s = 0.10;
-  const faces = [
-    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],     n:[0,0,1],  c:[.30,.60,1.0]}, // front
-    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],  n:[0,0,-1], c:[.15,.42,.90]}, // back
-    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],       n:[1,0,0],  c:[.20,.72,.92]}, // right
-    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],  n:[-1,0,0], c:[.18,.52,.92]}, // left
-    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],       n:[0,1,0],  c:[.82,.92,1.0]}, // top
-    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],   n:[0,-1,0], c:[.10,.30,.60]}, // bottom
-  ];
-  const cv=[], ci=[];
-  faces.forEach(({v,n,c},fi)=>{
-    const b=fi*4;
-    v.forEach(p=>cv.push(...p,...c,...n));
-    ci.push(b,b+1,b+2, b,b+2,b+3);
+function fitScale(wrap, name) {
+  const cv = document.querySelector(`#cv${cap(name)}`);
+  cv.width = wrap.clientWidth; cv.height = wrap.clientHeight;
+  let mnx=0,mxx=3,mny=0,mxy=2.4;
+  if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
+    mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);
+    mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);
+  }
+  const m=.4,rW=mxx-mnx+m*2,rH=mxy-mny+m*2;
+  const sc=Math.floor(Math.min(cv.width/rW,cv.height/rH,160));
+  scales[name]={sc,px:cv.width/2-(mnx+(mxx-mnx)/2)*sc,py:cv.height/2-(mny+(mxy-mny)/2)*sc};
+}
+
+function cap(s){return s[0].toUpperCase()+s.slice(1)}
+function mToS(x,y,sc,px,py){return{sx:px+x*sc,sy:py+y*sc}}
+function sToM(sx,sy,sc,px,py){return{x:(sx-px)/sc,y:(sy-py)/sc}}
+function snap(x,y,g=.10){return{x:Math.round(x/g)*g,y:Math.round(y/g)*g}}
+
+function drawGrid(ctx,W,H,sc,px,py){
+  const g=.10*sc,ox=((px%g)+g)%g,oy=((py%g)+g)%g;
+  ctx.strokeStyle='rgba(150,180,220,.1)';ctx.lineWidth=.5;
+  for(let x=ox;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=oy;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+  const mg=sc,mox=((px%mg)+mg)%mg,moy=((py%mg)+mg)%mg;
+  ctx.strokeStyle='rgba(150,180,220,.2)';ctx.lineWidth=.8;
+  for(let x=mox;x<W;x+=mg){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=moy;y<H;y+=mg){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+}
+
+function drawWallsBase(ctx, sc, px, py, withZones=false) {
+  if(!SC.walls.length) return;
+  const matF={carrelage:'#1e2d3e',antiderapant:'#1e2218',resine:'#1e1e22'};
+  const matW={carrelage:'#2a4060',beton:'#2e3338',peinture:'#3a3828'};
+  for(const w of SC.walls){
+    if(!w.pts||w.pts.length<2) continue;
+    const T=Math.max(6,sc*.06);
+    const p0=mToS(w.pts[0].x,w.pts[0].y,sc,px,py);
+    ctx.beginPath();ctx.moveTo(p0.sx,p0.sy);
+    for(let i=1;i<w.pts.length;i++){const p=mToS(w.pts[i].x,w.pts[i].y,sc,px,py);ctx.lineTo(p.sx,p.sy)}
+    if(w.closed)ctx.closePath();
+    if(w.closed){ctx.fillStyle=matF[SC.matFloor]||'#1e2d3e';ctx.fill()}
+    ctx.strokeStyle=matW[SC.matWall]||'#2a4060';ctx.lineWidth=T;ctx.lineJoin='round';ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1.5;ctx.stroke();
+    // Cotes
+    ctx.font=`9px 'JetBrains Mono',monospace`;ctx.textAlign='center';ctx.fillStyle='rgba(150,180,220,.7)';
+    const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i],b=pts[i+1],len=Math.hypot(b.x-a.x,b.y-a.y);if(len<.1)continue;
+      const m=mToS((a.x+b.x)/2,(a.y+b.y)/2,sc,px,py);
+      ctx.save();ctx.translate(m.sx,m.sy);ctx.rotate(Math.atan2(b.y-a.y,b.x-a.x));
+      ctx.fillText(len.toFixed(2)+'m',0,-5);ctx.restore();
+    }
+  }
+  // Ouvertures
+  for(const op of SC.openings) drawOpening(ctx,op,sc,px,py);
+}
+
+function drawOpening(ctx,op,sc,px,py){
+  const w=SC.walls[op.wi];if(!w)return;
+  const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;if(op.si>=pts.length-1)return;
+  const a=pts[op.si],b=pts[op.si+1],sl=Math.hypot(b.x-a.x,b.y-a.y),hw=op.w/2/sl;
+  const t1=Math.max(0,op.t-hw),t2=Math.min(1,op.t+hw);
+  const p1=mToS(a.x+(b.x-a.x)*t1,a.y+(b.y-a.y)*t1,sc,px,py);
+  const p2=mToS(a.x+(b.x-a.x)*t2,a.y+(b.y-a.y)*t2,sc,px,py);
+  const T=Math.max(6,sc*.06)+2;
+  ctx.strokeStyle='#0d1117';ctx.lineWidth=T;ctx.beginPath();ctx.moveTo(p1.sx,p1.sy);ctx.lineTo(p2.sx,p2.sy);ctx.stroke();
+  ctx.strokeStyle=op.type==='door'?'#3b82f6':'#0ea5e9';ctx.lineWidth=2;ctx.stroke();
+}
+
+function drawZones2D(ctx,sc,px,py){
+  for(const s of SC.sanitaires){
+    const c=CAT_SAN[s.type];if(!c?.water||!c.zR)continue;
+    const{z1:r1,z2:r2}=c.zR;
+    const cx=s.x,cy=s.y;
+    // Rotation appliquée
+    [[r2,'rgba(37,99,235,.06)','rgba(37,99,235,.25)','Z2'],
+     [r1,'rgba(245,158,11,.08)','rgba(245,158,11,.3)','Z1'],
+     [0, 'rgba(220,38,38,.1)', 'rgba(220,38,38,.45)','Z0']].forEach(([r,f,st,lbl])=>{
+      const x1=(cx-c.w/2-r)*sc+px,y1=(cy-c.d/2-r)*sc+py;
+      const bw=(c.w+2*r)*sc,bh=(c.d+2*r)*sc;
+      ctx.fillStyle=f;ctx.fillRect(x1,y1,bw,bh);
+      ctx.strokeStyle=st;ctx.lineWidth=r===0?1.2:1;
+      ctx.setLineDash(r===0?[]:[4,3]);ctx.strokeRect(x1,y1,bw,bh);ctx.setLineDash([]);
+      ctx.fillStyle=st;ctx.font='bold 7px JetBrains Mono,monospace';ctx.textAlign='left';
+      ctx.fillText(lbl,x1+3,y1+9);
+    });
+  }
+}
+
+function drawSanitaires2D(ctx,sc,px,py){
+  for(const s of SC.sanitaires){
+    const c=CAT_SAN[s.type];
+    const x=(s.x-c.w/2)*sc+px,y=(s.y-c.d/2)*sc+py,w=c.w*sc,h=c.d*sc;
+    const sel=s.id===selSanId;
+    ctx.save();
+    if(sel){ctx.shadowColor='rgba(96,165,250,.6)';ctx.shadowBlur=10}
+    // Corps
+    ctx.fillStyle='#1e3a4a';
+    rr(ctx,x,y,w,h,5);ctx.fill();
+    ctx.strokeStyle=sel?'#60a5fa':'#2a5a7a';ctx.lineWidth=sel?2.5:1.5;
+    rr(ctx,x,y,w,h,5);ctx.stroke();
+    // Icône
+    ctx.font=`${Math.min(w,h)*.45}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(c.ico,x+w/2,y+h/2);ctx.textBaseline='alphabetic';
+    // Label
+    ctx.font=`bold 8px 'JetBrains Mono',monospace`;ctx.fillStyle='rgba(150,200,240,.7)';
+    ctx.textAlign='center';ctx.fillText(c.label,x+w/2,y+h+12);
+    ctx.restore();
+  }
+}
+
+function drawElec2D(ctx,sc,px,py){
+  for(const e of SC.electrique){
+    const c=CAT_EL[e.type];if(!c)continue;
+    const{errs}=checkEl(e);
+    const col=errs.length?'#ef4444':'#22c55e';
+    const sp=mToS(e.x,e.y,sc,px,py);
+    const R=Math.max(10,sc*.10);
+    const sel=e.id===selElId;
+    if(sel){ctx.beginPath();ctx.arc(sp.sx,sp.sy,R+5,0,Math.PI*2);ctx.fillStyle='rgba(96,165,250,.15)';ctx.fill()}
+    ctx.beginPath();ctx.arc(sp.sx,sp.sy,R,0,Math.PI*2);
+    ctx.fillStyle='#161b22';ctx.fill();
+    ctx.strokeStyle=col;ctx.lineWidth=sel?2.5:2;ctx.stroke();
+    ctx.font=`${Math.max(8,R*.85)}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(c.ico,sp.sx,sp.sy);ctx.textBaseline='alphabetic';
+    ctx.font=`bold 7px 'JetBrains Mono',monospace`;ctx.fillStyle=col;
+    ctx.fillText((e.h||1).toFixed(1)+'m',sp.sx,sp.sy+R+9);
+    // Dot état
+    ctx.beginPath();ctx.arc(sp.sx+R*.7,sp.sy-R*.7,3,0,Math.PI*2);
+    ctx.fillStyle=col;ctx.fill();ctx.strokeStyle='#0d1117';ctx.lineWidth=1;ctx.stroke();
+  }
+}
+
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// ══════════════════════════════════════════════
+//  ÉTAPE 0 — MURS
+// ══════════════════════════════════════════════
+let dcv, dctx;
+function initDraw(){
+  const wrap=document.getElementById('drawWrap');
+  dcv=document.getElementById('cvDraw');dctx=dcv.getContext('2d');
+  dcv.width=wrap.clientWidth;dcv.height=wrap.clientHeight;
+  if(!SC.walls.length) SC.walls=[{pts:[{x:.2,y:.2},{x:3.2,y:.2},{x:3.2,y:2.6},{x:.2,y:2.6}],closed:true}];
+  const{sc,px,py}=scales.draw;scales.draw={sc:80,px:dcv.width*.1,py:dcv.height*.15};
+  setupDrawEv();redraw();
+}
+
+function setDrawTool(t){
+  drawTool=t;
+  ['Poly','Rect','Move'].forEach(n=>document.getElementById('t'+n).classList.toggle('on',t===n.toLowerCase()));
+}
+
+function setupDrawEv(){
+  if(dcv._ev) return;dcv._ev=true;
+  let pan=false,ps={x:0,y:0},po={x:0,y:0};
+  function gp(cx,cy){
+    const r=dcv.getBoundingClientRect();
+    const{sc,px,py}=scales.draw;
+    return snap(...Object.values(sToM(cx-r.left,cy-r.top,sc,px,py)));
+  }
+  dcv.addEventListener('mousemove',e=>{
+    const p=gp(e.clientX,e.clientY);dMouse=p;
+    if(pan){scales.draw.px+=e.movementX;scales.draw.py+=e.movementY;}
+    redraw();
   });
-  glCube = mkMesh(new Float32Array(cv), new Uint16Array(ci));
+  dcv.addEventListener('mousedown',e=>{if(drawTool==='move'){pan=true;}});
+  document.addEventListener('mouseup',()=>pan=false);
+  dcv.addEventListener('wheel',e=>{e.preventDefault();
+    const f=e.deltaY<0?1.1:.91;scales.draw.sc=Math.max(40,Math.min(400,scales.draw.sc*f));redraw();
+  },{passive:false});
+  dcv.addEventListener('click',e=>{const p=gp(e.clientX,e.clientY);handleDrawClick(p);});
+  dcv.addEventListener('dblclick',()=>{if(drawTool==='poly'&&curPoly.length>=3)closePoly();});
+  // Touch
+  let ta=[];
+  dcv.addEventListener('touchstart',e=>{e.preventDefault();ta=Array.from(e.touches);},{passive:false});
+  dcv.addEventListener('touchmove',e=>{
+    e.preventDefault();const ts=Array.from(e.touches);
+    if(ts.length===2&&ta.length===2){
+      const d0=Math.hypot(ta[1].clientX-ta[0].clientX,ta[1].clientY-ta[0].clientY);
+      const d1=Math.hypot(ts[1].clientX-ts[0].clientX,ts[1].clientY-ts[0].clientY);
+      if(d0>0)scales.draw.sc=Math.max(40,Math.min(400,scales.draw.sc*d1/d0));
+    } else if(ts.length===1&&ta.length===1){
+      scales.draw.px+=ts[0].clientX-ta[0].clientX;
+      scales.draw.py+=ts[0].clientY-ta[0].clientY;
+    }
+    ta=ts;redraw();
+  },{passive:false});
+  dcv.addEventListener('touchend',e=>{
+    e.preventDefault();
+    if(e.changedTouches.length===1&&ta.length<=1){
+      const t=e.changedTouches[0];
+      if(Math.hypot(t.clientX-ta[0]?.clientX,t.clientY-ta[0]?.clientY)<12){
+        const r=dcv.getBoundingClientRect();
+        const{sc,px,py}=scales.draw;
+        handleDrawClick(snap(...Object.values(sToM(t.clientX-r.left,t.clientY-r.top,sc,px,py))));
+      }
+    }ta=[];
+  },{passive:false});
+}
 
-  // Réticule : croix + cercle
-  const rv=[];
-  const R=0.055;
-  // Croix
-  rv.push(-R,0,0, R,0,0, 0,0,-R, 0,0,R);
-  // Cercle (32 segments)
-  for(let i=0;i<32;i++){
-    const a0=i/32*Math.PI*2, a1=(i+1)/32*Math.PI*2;
-    rv.push(Math.cos(a0)*R,0,Math.sin(a0)*R, Math.cos(a1)*R,0,Math.sin(a1)*R);
+function handleDrawClick({x,y}){
+  if(drawTool==='poly'){
+    if(curPoly.length>2){
+      const d=Math.hypot(x-curPoly[0].x,y-curPoly[0].y);
+      if(d<.15){closePoly();return;}
+    }
+    curPoly.push({x,y});redraw();
+  } else if(drawTool==='rect'){
+    curPoly.push({x,y});
+    if(curPoly.length===2){
+      const[a,b]=curPoly;
+      SC.walls.push({pts:[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}],closed:true});
+      curPoly=[];redraw();
+    }
   }
-  glReticle = mkLines(new Float32Array(rv));
+}
 
-  // Grille sol 1×1m (lignes tous les 10cm)
-  const gv=[];
-  for(let i=-5;i<=5;i++){
-    gv.push(i*.1,0,-.5, i*.1,0,.5);
-    gv.push(-.5,0,i*.1, .5,0,i*.1);
+function closePoly(){if(curPoly.length>=3)SC.walls.push({pts:[...curPoly],closed:true});curPoly=[];redraw();}
+function undoDraw(){if(curPoly.length>0){curPoly.pop();redraw();}else if(SC.walls.length>0){SC.walls.pop();redraw();}}
+function clearWalls(){if(confirm('Effacer le tracé ?')){SC.walls=[];curPoly=[];redraw();}}
+
+function redraw(){
+  if(!dctx)return;
+  const{sc,px,py}=scales.draw;
+  const W=dcv.width,H=dcv.height,ctx=dctx;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d1117';ctx.fillRect(0,0,W,H);
+  drawGrid(ctx,W,H,sc,px,py);
+  drawWallsBase(ctx,sc,px,py);
+  // Poly en cours
+  if(curPoly.length>0){
+    ctx.beginPath();const p0=mToS(curPoly[0].x,curPoly[0].y,sc,px,py);ctx.moveTo(p0.sx,p0.sy);
+    for(let i=1;i<curPoly.length;i++){const p=mToS(curPoly[i].x,curPoly[i].y,sc,px,py);ctx.lineTo(p.sx,p.sy)}
+    const pm=mToS(dMouse.x,dMouse.y,sc,px,py);ctx.lineTo(pm.sx,pm.sy);
+    ctx.strokeStyle='#60a5fa';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.stroke();ctx.setLineDash([]);
+    for(const pt of curPoly){
+      const p=mToS(pt.x,pt.y,sc,px,py);
+      ctx.beginPath();ctx.arc(p.sx,p.sy,5,0,Math.PI*2);
+      ctx.fillStyle='#2563eb';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
+    }
+    if(curPoly.length>2){
+      const p=mToS(curPoly[0].x,curPoly[0].y,sc,px,py);
+      const d=Math.hypot(dMouse.x-curPoly[0].x,dMouse.y-curPoly[0].y);
+      if(d<.15){ctx.beginPath();ctx.arc(p.sx,p.sy,10,0,Math.PI*2);ctx.strokeStyle='#22c55e';ctx.lineWidth=2;ctx.stroke();}
+    }
   }
-  glGrid = mkLines(new Float32Array(gv));
+  if(drawTool==='rect'&&curPoly.length===1){
+    const a=curPoly[0],b=dMouse;
+    const p1=mToS(a.x,a.y,sc,px,py),p2=mToS(b.x,b.y,sc,px,py);
+    ctx.strokeStyle='#60a5fa';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+    ctx.strokeRect(Math.min(p1.sx,p2.sx),Math.min(p1.sy,p2.sy),Math.abs(p2.sx-p1.sx),Math.abs(p2.sy-p1.sy));
+    ctx.setLineDash([]);
+  }
+  // Info
+  ctx.font=`10px 'JetBrains Mono',monospace`;ctx.fillStyle='rgba(150,180,220,.5)';ctx.textAlign='left';
+  ctx.fillText(`${dMouse.x?.toFixed(2)||0}m, ${dMouse.y?.toFixed(2)||0}m`,10,H-10);
 }
 
-function mkProg(vsrc,fsrc){
-  const vs=gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vs,vsrc); gl.compileShader(vs);
-  const fs=gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fs,fsrc); gl.compileShader(fs);
-  const p=gl.createProgram();
-  gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
-  return p;
+// ══════════════════════════════════════════════
+//  ÉTAPE 1 — OUVERTURES
+// ══════════════════════════════════════════════
+let ocv, octx;
+function initOpen(){
+  const wrap=document.getElementById('openWrap');
+  ocv=document.getElementById('cvOpen');octx=ocv.getContext('2d');
+  ocv.width=wrap.clientWidth;ocv.height=wrap.clientHeight;
+  scales.open={sc:scales.draw.sc,px:scales.draw.px,py:scales.draw.py};
+  setupOpenEv();redrawOpen();
 }
 
-function mkMesh(verts, idx){
-  const vbo=gl.createBuffer(), ibo=gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
-  gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
-  return { vbo, ibo, count:idx.length };
+function setOpenTool(t){
+  openTool=t;
+  document.getElementById('tDoor').classList.toggle('on',t==='door');
+  document.getElementById('tWindow').classList.toggle('on',t==='window');
 }
 
-function mkLines(verts){
-  const vbo=gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
-  gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
-  return { vbo, count:verts.length/3 };
+function setupOpenEv(){
+  if(ocv._ev)return;ocv._ev=true;
+  let ta=[];
+  ocv.addEventListener('touchstart',e=>{e.preventDefault();ta=Array.from(e.touches);},{passive:false});
+  ocv.addEventListener('touchmove',e=>{
+    e.preventDefault();const ts=Array.from(e.touches);
+    if(ts.length===2&&ta.length===2){
+      const d0=Math.hypot(ta[1].clientX-ta[0].clientX,ta[1].clientY-ta[0].clientY);
+      const d1=Math.hypot(ts[1].clientX-ts[0].clientX,ts[1].clientY-ts[0].clientY);
+      if(d0>0)scales.open.sc=Math.max(40,Math.min(400,scales.open.sc*d1/d0));
+    } else if(ts.length===1&&ta.length===1){
+      scales.open.px+=ts[0].clientX-ta[0].clientX;scales.open.py+=ts[0].clientY-ta[0].clientY;
+    }
+    ta=ts;redrawOpen();
+  },{passive:false});
+  ocv.addEventListener('touchend',e=>{
+    e.preventDefault();
+    if(e.changedTouches.length===1){
+      const t=e.changedTouches[0],r=ocv.getBoundingClientRect();
+      const{sc,px,py}=scales.open;
+      const{x,y}=sToM(t.clientX-r.left,t.clientY-r.top,sc,px,py);
+      placeOpening(x,y);
+    }ta=[];
+  },{passive:false});
+  ocv.addEventListener('click',e=>{
+    const r=ocv.getBoundingClientRect();const{sc,px,py}=scales.open;
+    const{x,y}=sToM(e.clientX-r.left,e.clientY-r.top,sc,px,py);placeOpening(x,y);
+  });
+  ocv.addEventListener('wheel',e=>{e.preventDefault();
+    scales.open.sc=Math.max(40,Math.min(400,scales.open.sc*(e.deltaY<0?1.1:.91)));redrawOpen();
+  },{passive:false});
 }
 
-// ─── Draw cube ───
-function drawCube(proj, view, model, selMode) {
-  const mvp = M.mvp(proj, view, model);
-  gl.useProgram(progCube);
-  gl.bindBuffer(gl.ARRAY_BUFFER, glCube.vbo);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, glCube.ibo);
-  // stride = 9 floats × 4 bytes = 36
+function placeOpening(mx,my){
+  let best=null,bestD=.3;
+  for(let wi=0;wi<SC.walls.length;wi++){
+    const w=SC.walls[wi];
+    const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;
+    for(let si=0;si<pts.length-1;si++){
+      const{d,t}=ptSeg(mx,my,pts[si].x,pts[si].y,pts[si+1].x,pts[si+1].y);
+      if(d<bestD){bestD=d;best={wi,si,t};}
+    }
+  }
+  if(!best)return;
+  SC.openings.push({id:++SC.idSeq,type:openTool,wi:best.wi,si:best.si,t:best.t,
+    w:parseFloat(document.getElementById('openW').value)||.8});
+  redrawOpen();
+}
+
+function ptSeg(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+  if(!l2)return{d:Math.hypot(px-ax,py-ay),t:0};
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+  return{d:Math.hypot(px-ax-t*dx,py-ay-t*dy),t};
+}
+
+function undoOpen(){SC.openings.pop();redrawOpen();}
+
+function redrawOpen(){
+  if(!octx)return;
+  const{sc,px,py}=scales.open;const W=ocv.width,H=ocv.height,ctx=octx;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d1117';ctx.fillRect(0,0,W,H);
+  drawGrid(ctx,W,H,sc,px,py);
+  drawWallsBase(ctx,sc,px,py);
+  ctx.font=`10px 'JetBrains Mono',monospace`;ctx.fillStyle='rgba(150,180,220,.5)';ctx.textAlign='left';
+  ctx.fillText(`${SC.openings.length} ouverture(s)`,10,H-10);
+}
+
+// ══════════════════════════════════════════════
+//  ÉTAPE 2 — SANITAIRES
+// ══════════════════════════════════════════════
+let scv, sctx;
+function initSan(){
+  const wrap=document.getElementById('sanWrap');
+  scv=document.getElementById('cvSan');sctx=scv.getContext('2d');
+  scv.width=wrap.clientWidth;scv.height=wrap.clientHeight;
+  scales.san={sc:scales.draw.sc,px:scales.draw.px,py:scales.draw.py};
+  setupSanEv();
+  document.getElementById('sanDrawer').classList.add('open');
+  redrawSan();
+}
+
+function setSanTool(t){
+  sanTool=t;
+  document.getElementById('tSanMove').classList.toggle('on',t==='move');
+  document.getElementById('tSanRot').classList.toggle('on',t==='rot');
+}
+
+function addSan(type){
+  // Placer au centre de la pièce
+  let cx=1.7,cy=1.3;
+  if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
+    cx=(cx+p.x)/2;cy=(cy+p.y)/2;
+  }
+  SC.sanitaires.push({id:++SC.idSeq,type,x:cx,y:cy,ry:0});
+  selSanId=SC.sanitaires[SC.sanitaires.length-1].id;
+  redrawSan();
+}
+
+function setupSanEv(){
+  if(scv._ev)return;scv._ev=true;
+  let dragId=-1,ox=0,oy=0,sx=0,sy=0;
+  let ta=[];
+
+  function getEl(mx,my){
+    for(let i=SC.sanitaires.length-1;i>=0;i--){
+      const s=SC.sanitaires[i],c=CAT_SAN[s.type];
+      const R=Math.max(c.w,c.d)/2;
+      if(Math.hypot(mx-s.x,my-s.y)<R)return s;
+    }return null;
+  }
+
+  scv.addEventListener('mousedown',e=>{
+    const r=scv.getBoundingClientRect();const{sc,px,py}=scales.san;
+    const{x,y}=sToM(e.clientX-r.left,e.clientY-r.top,sc,px,py);
+    const el=getEl(x,y);
+    if(el){selSanId=el.id;dragId=el.id;ox=el.x;oy=el.y;sx=e.clientX;sy=e.clientY;redrawSan();}
+    else{selSanId=-1;redrawSan();}
+  });
+  document.addEventListener('mousemove',e=>{
+    if(dragId<0)return;
+    const el=SC.sanitaires.find(s=>s.id===dragId);if(!el)return;
+    const{sc}=scales.san;el.x=ox+(e.clientX-sx)/sc;el.y=oy+(e.clientY-sy)/sc;redrawSan();
+  });
+  document.addEventListener('mouseup',()=>dragId=-1);
+
+  scv.addEventListener('touchstart',e=>{
+    e.preventDefault();ta=Array.from(e.touches);
+    if(ta.length===1){
+      const t=ta[0],r=scv.getBoundingClientRect();const{sc,px,py}=scales.san;
+      const{x,y}=sToM(t.clientX-r.left,t.clientY-r.top,sc,px,py);
+      const el=getEl(x,y);
+      if(el){selSanId=el.id;dragId=el.id;ox=el.x;oy=el.y;sx=t.clientX;sy=t.clientY;redrawSan();}
+      else{selSanId=-1;redrawSan();}
+    }
+  },{passive:false});
+  scv.addEventListener('touchmove',e=>{
+    e.preventDefault();const ts=Array.from(e.touches);
+    if(ts.length===2&&ta.length===2){
+      const d0=Math.hypot(ta[1].clientX-ta[0].clientX,ta[1].clientY-ta[0].clientY);
+      const d1=Math.hypot(ts[1].clientX-ts[0].clientX,ts[1].clientY-ts[0].clientY);
+      if(d0>0)scales.san.sc=Math.max(40,Math.min(400,scales.san.sc*d1/d0));
+    } else if(ts.length===1&&dragId>=0){
+      const el=SC.sanitaires.find(s=>s.id===dragId);if(!el)return;
+      const{sc}=scales.san;
+      el.x=ox+(ts[0].clientX-sx)/sc;el.y=oy+(ts[0].clientY-sy)/sc;
+    } else if(ts.length===1&&dragId<0){
+      scales.san.px+=ts[0].clientX-ta[0].clientX;scales.san.py+=ts[0].clientY-ta[0].clientY;
+    }
+    ta=ts;redrawSan();
+  },{passive:false});
+  scv.addEventListener('touchend',e=>{e.preventDefault();dragId=-1;ta=[];},{passive:false});
+  scv.addEventListener('wheel',e=>{e.preventDefault();
+    scales.san.sc=Math.max(40,Math.min(400,scales.san.sc*(e.deltaY<0?1.1:.91)));redrawSan();
+  },{passive:false});
+}
+
+function toggleDrawer(which){
+  drawerOpen[which]=!drawerOpen[which];
+  document.getElementById(which+'Drawer').classList.toggle('open',drawerOpen[which]);
+}
+
+function redrawSan(){
+  if(!sctx)return;
+  const{sc,px,py}=scales.san;const W=scv.width,H=scv.height,ctx=sctx;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d1117';ctx.fillRect(0,0,W,H);
+  drawGrid(ctx,W,H,sc,px,py);
+  drawWallsBase(ctx,sc,px,py);
+  drawZones2D(ctx,sc,px,py);
+  drawSanitaires2D(ctx,sc,px,py);
+  ctx.font=`10px 'JetBrains Mono',monospace`;ctx.fillStyle='rgba(150,180,220,.5)';ctx.textAlign='left';
+  const sel=SC.sanitaires.find(s=>s.id===selSanId);
+  ctx.fillText(sel?`${CAT_SAN[sel.type].label} sélectionné`:`${SC.sanitaires.length} sanitaire(s)`,10,H-10);
+}
+
+// ══════════════════════════════════════════════
+//  ÉTAPE 3 — ÉLECTRIQUE
+// ══════════════════════════════════════════════
+let ecv, ectx;
+function initEl(){
+  const wrap=document.getElementById('elWrap');
+  ecv=document.getElementById('cvEl');ectx=ecv.getContext('2d');
+  ecv.width=wrap.clientWidth;ecv.height=wrap.clientHeight;
+  scales.el={sc:scales.draw.sc,px:scales.draw.px,py:scales.draw.py};
+  setupElEv();
+  document.getElementById('elDrawer').classList.add('open');
+  redrawEl();
+}
+
+function setElTool(t){elTool=t;}
+
+function distToEdge(px,py){
+  let m=Infinity;
+  for(const s of SC.sanitaires){
+    const c=CAT_SAN[s.type];if(!c?.water)continue;
+    const cx=Math.max(s.x-c.w/2,Math.min(s.x+c.w/2,px));
+    const cy=Math.max(s.y-c.d/2,Math.min(s.y+c.d/2,py));
+    m=Math.min(m,Math.hypot(px-cx,py-cy)*100);
+  }return m;
+}
+function insideSan(px,py){
+  for(const s of SC.sanitaires){const c=CAT_SAN[s.type];if(!c?.water)continue;
+    if(px>=s.x-c.w/2&&px<=s.x+c.w/2&&py>=s.y-c.d/2&&py<=s.y+c.d/2)return true;}return false;
+}
+function getZone(px,py,h=1){
+  if(insideSan(px,py))return 0;
+  const d=distToEdge(px,py);
+  if(d<=60&&h<=2.25)return 1;if(d<=120&&h<=2.25)return 2;return'hors';
+}
+
+function addEl(type){
+  let cx=1.7,cy=1.3;
+  if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){cx=(cx+p.x)/2;cy=(cy+p.y)/2;}
+  const c=CAT_EL[type];
+  const defH={prise:1.05,inter:1.10,dcl:2.45,spot:2.45,applique:2.30,hublot:2.10,seche:1.20,vmc:2.45,tableau:1.50};
+  const el={id:++SC.idSeq,type,x:cx,y:cy,h:defH[type]||1.0,ip:c.ip,cl:c.cl};
+  el.zone=getZone(el.x,el.y,el.h);el.distCm=distToEdge(el.x,el.y);
+  SC.electrique.push(el);selElId=el.id;openElProp(el.id);redrawEl();
+}
+
+function checkEl(el){
+  const c=CAT_EL[el.type];if(!c)return{errs:[],warns:[]};
+  const errs=[],warns=[];
+  if(c.zones&&!c.zones.includes(el.zone))errs.push(`Zone ${el.zone} interdite`);
+  if(c.minDist&&el.distCm<c.minDist)errs.push(`Trop près: ${Math.round(el.distCm)}cm`);
+  if(c.minH&&el.h<c.minH)errs.push(`H trop bas: ${el.h.toFixed(2)}m`);
+  if(c.maxH&&el.h>c.maxH)warns.push(`H élevée: ${el.h.toFixed(2)}m`);
+  const ipN=v=>parseInt(v.replace('IP',''))||0;
+  if(ipN(el.ip||'IP21')<ipN((el.zone===1||el.zone===2)?'IP44':'IP21'))errs.push(`IP insuffisant: ${el.ip}`);
+  if((el.zone===1||el.zone===2)&&el.cl==='I')errs.push('Classe I interdit zone humide');
+  return{errs,warns};
+}
+
+function setupElEv(){
+  if(ecv._ev)return;ecv._ev=true;
+  let dragId=-1,ox=0,oy=0,sx=0,sy=0;let ta=[];
+  function getElAt(mx,my){
+    for(let i=SC.electrique.length-1;i>=0;i--){
+      const e=SC.electrique[i];if(Math.hypot(mx-e.x,my-e.y)<.25)return e;
+    }return null;
+  }
+  function updDrag(el){el.zone=getZone(el.x,el.y,el.h);el.distCm=distToEdge(el.x,el.y);}
+  ecv.addEventListener('mousedown',e=>{
+    const r=ecv.getBoundingClientRect();const{sc,px,py}=scales.el;
+    const{x,y}=sToM(e.clientX-r.left,e.clientY-r.top,sc,px,py);
+    const el=getElAt(x,y);
+    if(el){selElId=el.id;dragId=el.id;ox=el.x;oy=el.y;sx=e.clientX;sy=e.clientY;openElProp(el.id);redrawEl();}
+    else{selElId=-1;closeElProp();redrawEl();}
+  });
+  document.addEventListener('mousemove',e=>{
+    if(dragId<0)return;const el=SC.electrique.find(e2=>e2.id===dragId);if(!el)return;
+    const{sc}=scales.el;el.x=ox+(e.clientX-sx)/sc;el.y=oy+(e.clientY-sy)/sc;updDrag(el);
+    if(selElId===dragId)updElProp(el.id);redrawEl();
+  });
+  document.addEventListener('mouseup',()=>dragId=-1);
+  ecv.addEventListener('touchstart',e=>{
+    e.preventDefault();ta=Array.from(e.touches);
+    if(ta.length===1){
+      const t=ta[0],r=ecv.getBoundingClientRect();const{sc,px,py}=scales.el;
+      const{x,y}=sToM(t.clientX-r.left,t.clientY-r.top,sc,px,py);
+      const el=getElAt(x,y);
+      if(el){selElId=el.id;dragId=el.id;ox=el.x;oy=el.y;sx=t.clientX;sy=t.clientY;openElProp(el.id);redrawEl();}
+      else{selElId=-1;closeElProp();redrawEl();}
+    }
+  },{passive:false});
+  ecv.addEventListener('touchmove',e=>{
+    e.preventDefault();const ts=Array.from(e.touches);
+    if(ts.length===2&&ta.length===2){
+      const d0=Math.hypot(ta[1].clientX-ta[0].clientX,ta[1].clientY-ta[0].clientY);
+      const d1=Math.hypot(ts[1].clientX-ts[0].clientX,ts[1].clientY-ts[0].clientY);
+      if(d0>0)scales.el.sc=Math.max(40,Math.min(400,scales.el.sc*d1/d0));
+    } else if(ts.length===1&&dragId>=0){
+      const el=SC.electrique.find(e2=>e2.id===dragId);if(!el)return;
+      const{sc}=scales.el;el.x=ox+(ts[0].clientX-sx)/sc;el.y=oy+(ts[0].clientY-sy)/sc;
+      updDrag(el);if(selElId===dragId)updElProp(el.id);
+    } else if(ts.length===1&&dragId<0){
+      scales.el.px+=ts[0].clientX-ta[0].clientX;scales.el.py+=ts[0].clientY-ta[0].clientY;
+    }
+    ta=ts;redrawEl();
+  },{passive:false});
+  ecv.addEventListener('touchend',e=>{e.preventDefault();dragId=-1;ta=[];},{passive:false});
+  ecv.addEventListener('wheel',e=>{e.preventDefault();
+    scales.el.sc=Math.max(40,Math.min(400,scales.el.sc*(e.deltaY<0?1.1:.91)));redrawEl();
+  },{passive:false});
+}
+
+function openElProp(id){
+  document.getElementById('elProp').classList.add('open');
+  updElProp(id);
+}
+function closeElProp(){document.getElementById('elProp').classList.remove('open');}
+
+function updElProp(id){
+  const el=SC.electrique.find(e=>e.id===id);if(!el)return;
+  const c=CAT_EL[el.type],{errs,warns}=checkEl(el);
+  const st=errs.length?'er':warns.length?'wn':'ok';
+  const zL=el.zone==='hors'?'Hors zone':'Zone '+el.zone;
+  document.getElementById('elPropTitle').textContent=c.ico+' '+c.label;
+  document.getElementById('elPropBody').innerHTML=`
+    <div class="pf"><label>Hauteur (m)</label>
+      <input type="number" value="${el.h.toFixed(2)}" step="0.05" min="0" max="4"
+        onchange="setProp(${id},'h',+this.value)"></div>
+    <div class="pf"><label>Indice IP</label>
+      <select onchange="setProp(${id},'ip',this.value)">
+        ${['IP21','IP44','IP55','IP65'].map(v=>`<option${el.ip===v?' selected':''}>${v}</option>`).join('')}
+      </select></div>
+    <div class="pf"><label>Classe isolation</label>
+      <select onchange="setProp(${id},'cl',this.value)">
+        ${['I','II','III'].map(v=>`<option${el.cl===v?' selected':''}>${v}</option>`).join('')}
+      </select></div>
+    <div style="font-size:.62rem;color:var(--mid);margin:4px 0;line-height:1.7">
+      Zone : <b style="color:var(--txt)">${zL}</b> · 
+      Dist. eau : <b style="color:var(--txt)">${el.distCm===Infinity?'—':Math.round(el.distCm)+' cm'}</b>
+    </div>
+    <div class="stbadge ${st}">${st==='ok'?'✅ Conforme':st==='wn'?'⚠️ '+warns[0]:'❌ '+errs[0]}</div>
+    ${errs.slice(1).map(e=>`<div class="stbadge er" style="margin-top:4px">❌ ${e}</div>`).join('')}
+    <button class="delbtn" onclick="delEl(${id})">🗑 Supprimer</button>`;
+}
+
+function setProp(id,k,v){
+  const el=SC.electrique.find(e=>e.id===id);if(!el)return;
+  el[k]=v;el.zone=getZone(el.x,el.y,el.h);el.distCm=distToEdge(el.x,el.y);
+  updElProp(id);redrawEl();
+}
+function delEl(id){
+  SC.electrique=SC.electrique.filter(e=>e.id!==id);
+  selElId=-1;closeElProp();redrawEl();
+}
+
+function redrawEl(){
+  if(!ectx)return;
+  const{sc,px,py}=scales.el;const W=ecv.width,H=ecv.height,ctx=ectx;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d1117';ctx.fillRect(0,0,W,H);
+  drawGrid(ctx,W,H,sc,px,py);
+  drawWallsBase(ctx,sc,px,py);
+  drawZones2D(ctx,sc,px,py);
+  drawSanitaires2D(ctx,sc,px,py);
+  drawElec2D(ctx,sc,px,py);
+  const te=SC.electrique.filter(e=>checkEl(e).errs.length>0).length;
+  ctx.font=`10px 'JetBrains Mono',monospace`;ctx.textAlign='left';
+  ctx.fillStyle=te>0?'#ef4444':'#22c55e';
+  ctx.fillText(`${SC.electrique.length} éléments · ${te} erreur(s)`,10,H-10);
+}
+
+// ══════════════════════════════════════════════
+//  ÉTAPE 4 — NORMES
+// ══════════════════════════════════════════════
+function calcVols(){
+  const H=SC.roomH,ZH=2.25;
+  let rA=0;if(SC.walls.length)for(const w of SC.walls)rA+=Math.abs(polyArea(w.pts));else rA=3*2.4;
+  let z0=0,z1=0,z2=0;
+  for(const s of SC.sanitaires){const c=CAT_SAN[s.type];if(!c?.water||!c.zR)continue;
+    const{z1:r1,z2:r2}=c.zR;z0+=c.w*c.d*(c.h3||.5);
+    z1+=((c.w+2*r1)*(c.d+2*r1)-c.w*c.d)*ZH;z2+=((c.w+2*r2)*(c.d+2*r2)-(c.w+2*r1)*(c.d+2*r1))*ZH;
+  }
+  return{roomVol:rA*H,z0,z1,z2,hors:Math.max(0,rA*H-z0-z1-z2)};
+}
+function polyArea(pts){let a=0;for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;a+=pts[i].x*pts[j].y-pts[j].x*pts[i].y;}return a/2;}
+
+function renderNorms(){
+  const els=SC.electrique;
+  const v=calcVols();
+  let te=0,tw=0,cards='';
+  for(const el of els){
+    const c=CAT_EL[el.type],{errs,warns}=checkEl(el);
+    te+=errs.length;tw+=warns.length;
+    const st=errs.length?'er':warns.length?'wn':'ok';
+    const zL=el.zone==='hors'?'Hors zone':'Zone '+el.zone;
+    const col={er:'#ef4444',wn:'#f59e0b',ok:'#22c55e'}[st];
+    cards+=`<div style="background:var(--sur);border-radius:10px;margin-bottom:8px;overflow:hidden;border:1px solid var(--bor)">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bor)">
+        <span style="font-size:1.1rem">${c.ico}</span>
+        <span style="font-weight:700;font-size:.8rem;flex:1">${c.label}</span>
+        <span style="font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:8px;
+          background:${col}22;color:${col}">${st==='ok'?'CONFORME':st==='wn'?'VÉRIFIER':'ERREUR'}</span>
+      </div>
+      <div style="padding:8px 12px;font-size:.69rem;line-height:2">
+        Zone: <b>${zL}</b> · H: <b>${el.h.toFixed(2)}m</b> · IP: <b>${el.ip}</b> · Classe: <b>${el.cl}</b>
+      </div>
+      <div style="padding:0 12px 9px">${
+        [...errs.map(m=>`<div style="color:#ef4444;font-size:.67rem">❌ ${m}</div>`),
+         ...warns.map(m=>`<div style="color:#f59e0b;font-size:.67rem">⚠️ ${m}</div>`),
+         st==='ok'?'<div style="color:#22c55e;font-size:.67rem">✅ Conforme NF C 15-100</div>':''].join('')
+      }</div></div>`;
+  }
+  const sc=Math.max(0,Math.round(100-te*20-tw*5));
+  const scCol=sc>=80?'#22c55e':sc>=50?'#f59e0b':'#ef4444';
+  document.getElementById('normContent').innerHTML=`
+    <div style="background:var(--sur);border-radius:10px;padding:14px;text-align:center;margin-bottom:12px;border:1px solid var(--bor)">
+      <div style="font-size:2.8rem;font-weight:800;color:${scCol};font-family:'Syne',sans-serif">${sc}%</div>
+      <div style="font-size:.74rem;color:var(--mid);margin:4px 0">${sc>=80?'Installation conforme':sc>=50?'Corrections nécessaires':'Erreurs graves'}</div>
+      <div style="display:flex;justify-content:center;gap:8px;margin:10px 0;flex-wrap:wrap">
+        ${te?`<span style="padding:3px 10px;border-radius:14px;font-size:.67rem;font-weight:700;background:#ef444420;color:#ef4444">${te} erreur${te>1?'s':''}</span>`:''}
+        ${tw?`<span style="padding:3px 10px;border-radius:14px;font-size:.67rem;font-weight:700;background:#f59e0b20;color:#f59e0b">${tw} alerte${tw>1?'s':''}</span>`:''}
+        ${!te&&!tw?'<span style="padding:3px 10px;border-radius:14px;font-size:.67rem;font-weight:700;background:#22c55e20;color:#22c55e">✅ Aucun problème</span>':''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;text-align:left;margin-top:8px">
+        ${[
+          ['Pièce totale','#94a3b8',v.roomVol],
+          ['Zone 0','#ef4444',v.z0],
+          ['Zone 1 H≤2,25m','#f59e0b',v.z1],
+          ['Zone 2 H≤2,25m','#3b82f6',v.z2],
+          ['Hors zone','#22c55e',v.hors],
+        ].map(([k,c,val])=>`
+          <div style="background:${c}18;border-radius:7px;padding:7px 9px;font-size:.63rem">
+            <div style="color:${c};margin-bottom:2px">${k}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:600">${val.toFixed(2)} m³</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    ${els.length?cards:'<div style="color:var(--mid);font-size:.8rem;text-align:center;padding:20px">Aucun élément électrique placé</div>'}
+    <div style="height:16px"></div>`;
+}
+
+// ══════════════════════════════════════════════
+//  AR — rendu WebXR de la scène complète
+// ══════════════════════════════════════════════
+let arSes, arRef, arHitSrc;
+let arGL, arProg, arProgLine, arBuilt=false;
+let arAnchored=false, arAnchorX=0, arAnchorY=0, arAnchorZ=0;
+let arRotY=0, arHitX=0, arHitY=0, arHitZ=0, arHitOK=false;
+let arLayers={zones:true,elec:true,walls:true};
+let arFrameN=0;
+let arGeo={};
+
+function toggleARLyr(k){
+  arLayers[k]=!arLayers[k];
+  document.getElementById('b'+k[0].toUpperCase()+k.slice(1)).classList.toggle('on',arLayers[k]);
+}
+
+async function startAR(){
+  if(!navigator.xr){alert('WebXR non disponible');return;}
+  try{
+    arSes=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['hit-test'],
+      optionalFeatures:['dom-overlay','local-floor'],
+      domOverlay:{root:document.body}
+    });
+  }catch(e){alert('Erreur AR:\n'+e.message);return;}
+
+  document.getElementById('home').style.display='none';
+  document.getElementById('wizard').style.display='none';
+  document.getElementById('scrAR').style.display='block';
+  arSetSt('Calibration…','scan');
+
+  arSes.addEventListener('end',()=>{
+    document.getElementById('scrAR').style.display='none';
+    document.getElementById('wizard').style.display='flex';
+    arAnchored=false;arBuilt=false;
+  });
+  arSes.addEventListener('select',arOnTap);
+
+  const cv=document.getElementById('arCanvas');
+  arGL=cv.getContext('webgl',{xrCompatible:true,alpha:true});
+  await arGL.makeXRCompatible();
+  arSes.updateRenderState({baseLayer:new XRWebGLLayer(arSes,arGL)});
+
+  try{arRef=await arSes.requestReferenceSpace('local-floor');}
+  catch{arRef=await arSes.requestReferenceSpace('local');}
+
+  await arStartHit();
+  arBuildGL();
+  arSes.requestAnimationFrame(arLoop);
+}
+
+async function arStartHit(){
+  const vs=await arSes.requestReferenceSpace('viewer');
+  arHitSrc=await arSes.requestHitTestSource({space:vs});
+}
+function arStopHit(){if(arHitSrc){try{arHitSrc.cancel();}catch{}arHitSrc=null;}}
+
+function arOnTap(){
+  if(!arAnchored)arPlaceScene();
+}
+
+function arPlaceScene(){
+  if(!arHitOK){arSetSt('Pointez le sol d\'abord','scan');return;}
+  arAnchorX=arHitX;arAnchorY=arHitY;arAnchorZ=arHitZ;
+  arAnchored=true;
+  arStopHit();
+  arSetSt('Scène ancrée ✓','go');
+  document.getElementById('arPlaceBtn').textContent='✓ Ancré';
+  updateVolBox();
+}
+
+function arReanchor(){
+  arAnchored=false;
+  arStartHit();
+  arSetSt('Pointez le sol…','scan');
+  document.getElementById('arPlaceBtn').textContent='📍 Ancrer ici';
+}
+function resetARScene(){arReanchor();}
+function arRotate(d){arRotY+=d*Math.PI/180;}
+
+function closeAR(){
+  if(arSes)arSes.end();
+}
+
+// ─── Build GL ───
+function arBuildGL(){
+  if(arBuilt)return;arBuilt=true;
+  const gl=arGL;
+
+  arProg=arMkProg(gl,`
+    attribute vec3 aPos;attribute vec3 aCol;attribute vec3 aNorm;
+    uniform mat4 uMVP;uniform mat4 uM;
+    varying vec3 vCol;varying vec3 vNorm;
+    void main(){
+      gl_Position=uMVP*vec4(aPos,1.0);
+      vNorm=normalize(vec3(uM*vec4(aNorm,0.0)));
+      vCol=aCol;
+    }`,`
+    precision mediump float;
+    varying vec3 vCol;varying vec3 vNorm;
+    uniform float uAlpha;
+    void main(){
+      float d=max(dot(vNorm,normalize(vec3(0.8,1.5,0.6))),0.0)*0.6+0.4;
+      gl_FragColor=vec4(vCol*d,uAlpha);
+    }`);
+
+  arProgLine=arMkProg(gl,`
+    attribute vec3 aPos;uniform mat4 uMVP;
+    void main(){gl_Position=uMVP*vec4(aPos,1.0);}`,`
+    precision mediump float;uniform vec4 uCol;
+    void main(){gl_FragColor=uCol;}`);
+
+  // Cube unitaire avec normales
+  const s=0.5;
+  const faces=[
+    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],     n:[0,0,1], c:[.3,.6,1.0]},
+    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],  n:[0,0,-1],c:[.15,.4,.9]},
+    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],       n:[1,0,0], c:[.2,.7,.9]},
+    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],  n:[-1,0,0],c:[.2,.5,.9]},
+    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],       n:[0,1,0], c:[.8,.9,1.0]},
+    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],   n:[0,-1,0],c:[.1,.3,.6]},
+  ];
+  const cv=[],ci=[];
+  faces.forEach(({v,n,c},fi)=>{
+    const b=fi*4;v.forEach(p=>cv.push(...p,...c,...n));
+    ci.push(b,b+1,b+2,b,b+2,b+3);
+  });
+  arGeo.cube=arMkMesh(gl,new Float32Array(cv),new Uint16Array(ci));
+
+  // Réticule
+  const rv=[];const R=0.06;
+  rv.push(-R,0,0,R,0,0,0,0,-R,0,0,R);
+  for(let i=0;i<32;i++){const a=i/32*Math.PI*2,b=(i+1)/32*Math.PI*2;rv.push(Math.cos(a)*R,0,Math.sin(a)*R,Math.cos(b)*R,0,Math.sin(b)*R);}
+  arGeo.ret=arMkLines(gl,new Float32Array(rv));
+
+  // Grille sol
+  const gv=[];for(let i=-5;i<=5;i++){gv.push(i*.1,0,-.5,i*.1,0,.5,-.5,0,i*.1,.5,0,i*.1);}
+  arGeo.grid=arMkLines(gl,new Float32Array(gv));
+}
+
+function arMkProg(gl,vsrc,fsrc){
+  const vs=gl.createShader(gl.VERTEX_SHADER);gl.shaderSource(vs,vsrc);gl.compileShader(vs);
+  const fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(fs,fsrc);gl.compileShader(fs);
+  const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);return p;
+}
+function arMkMesh(gl,verts,idx){
+  const vbo=gl.createBuffer(),ibo=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
+  return{vbo,ibo,count:idx.length};
+}
+function arMkLines(gl,verts){
+  const vbo=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);return{vbo,count:verts.length/3};
+}
+
+// Matrices column-major
+const AM={
+  id(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])},
+  mul(a,b){
+    const o=new Float32Array(16);
+    for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)o[c*4+r]+=a[k*4+r]*b[c*4+k];
+    return o;
+  },
+  T(x,y,z){const m=AM.id();m[12]=x;m[13]=y;m[14]=z;return m;},
+  S(x,y,z){const m=AM.id();m[0]=x;m[5]=y;m[10]=z;return m;},
+  RY(a){const c=Math.cos(a),s=Math.sin(a),m=AM.id();m[0]=c;m[8]=s;m[2]=-s;m[10]=c;return m;},
+  mvp(proj,view,model){return AM.mul(AM.mul(proj,view),model);}
+};
+
+function arDrawMesh(proj,view,model,geo,alpha=1,prog=arProg){
+  const gl=arGL;
+  const mvp=AM.mvp(proj,view,model);
+  gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER,geo.vbo);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,geo.ibo);
   const s=36;
-  setAttr('aPos', 3, 0, s);
-  setAttr('aCol', 3, 3, s);
-  setAttr('aNorm',3, 6, s);
-  gl.uniformMatrix4fv(gl.getUniformLocation(progCube,'uMVP'), false, mvp);
-  gl.uniformMatrix4fv(gl.getUniformLocation(progCube,'uM'),   false, model);
-  gl.uniform1f(gl.getUniformLocation(progCube,'uSel'), selMode);
-  gl.drawElements(gl.TRIANGLES, glCube.count, gl.UNSIGNED_SHORT, 0);
+  const setA=(n,sz,o)=>{const l=gl.getAttribLocation(prog,n);if(l<0)return;gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,sz,gl.FLOAT,false,s,o*4);};
+  setA('aPos',3,0);setA('aCol',3,3);setA('aNorm',3,6);
+  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uMVP'),false,mvp);
+  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uM'),false,model);
+  gl.uniform1f(gl.getUniformLocation(prog,'uAlpha'),alpha);
+  gl.drawElements(gl.TRIANGLES,geo.count,gl.UNSIGNED_SHORT,0);
 }
 
-// ─── Draw lines ───
-function drawLines(proj, view, model, buf, r,g,b,a) {
-  const mvp = M.mvp(proj, view, model);
-  gl.useProgram(progLine);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.vbo);
-  const l=gl.getAttribLocation(progLine,'aPos');
-  gl.enableVertexAttribArray(l);
-  gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);
-  gl.uniformMatrix4fv(gl.getUniformLocation(progLine,'uMVP'), false, mvp);
-  gl.uniform4fv(gl.getUniformLocation(progLine,'uCol'), [r,g,b,a]);
-  gl.drawArrays(gl.LINES, 0, buf.count);
+function arDrawLines(proj,view,model,geo,r,g,b,a){
+  const gl=arGL,mvp=AM.mvp(proj,view,model);
+  gl.useProgram(arProgLine);
+  gl.bindBuffer(gl.ARRAY_BUFFER,geo.vbo);
+  const l=gl.getAttribLocation(arProgLine,'aPos');
+  gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);
+  gl.uniformMatrix4fv(gl.getUniformLocation(arProgLine,'uMVP'),false,mvp);
+  gl.uniform4fv(gl.getUniformLocation(arProgLine,'uCol'),[r,g,b,a]);
+  gl.drawArrays(gl.LINES,0,geo.count);
 }
 
-function setAttr(name, size, offsetFloats, strideBytes){
-  const l=gl.getAttribLocation(progCube,name);
-  if(l<0) return;
-  gl.enableVertexAttribArray(l);
-  gl.vertexAttribPointer(l,size,gl.FLOAT,false,strideBytes,offsetFloats*4);
-}
-
-// ═══════════════════════════════════════════
-//  BOUCLE PRINCIPALE
-// ═══════════════════════════════════════════
-function loop(t, frame) {
-  ses.requestAnimationFrame(loop);
-  if (!glCube) return;
-
-  frameN++;
-  const layer = ses.renderState.baseLayer;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+// ─── Loop AR ───
+function arLoop(t,frame){
+  arSes.requestAnimationFrame(arLoop);
+  if(!arGeo.cube)return;
+  arFrameN++;
+  const gl=arGL;
+  const layer=arSes.renderState.baseLayer;
+  gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
-  gl.disable(gl.CULL_FACE);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
 
-  const pose = frame.getViewerPose(ref);
-  if (!pose) return;
+  const pose=frame.getViewerPose(arRef);if(!pose)return;
 
-  // ── Hit-test ──
-  if (hitSrc) {
-    const hits = frame.getHitTestResults(hitSrc);
-    hitOK = hits.length > 0;
-    if (hitOK) {
-      const hp = hits[0].getPose(ref);
-      if (hp) {
-        hitX = hp.transform.matrix[12];
-        hitY = hp.transform.matrix[13];
-        hitZ = hp.transform.matrix[14];
+  // Hit-test
+  if(arHitSrc){
+    const hits=frame.getHitTestResults(arHitSrc);
+    arHitOK=hits.length>0;
+    if(arHitOK){
+      const hp=hits[0].getPose(arRef);if(hp){arHitX=hp.transform.matrix[12];arHitY=hp.transform.matrix[13];arHitZ=hp.transform.matrix[14];}
+    }
+  }
+
+  // Visée cube AR
+  const camMat=pose.transform.matrix;
+  const camPos=[camMat[12],camMat[13],camMat[14]];
+  const camFwd=[-camMat[8],-camMat[9],-camMat[10]];
+
+  for(const view of pose.views){
+    const vp=layer.getViewport(view);
+    gl.viewport(vp.x,vp.y,vp.width,vp.height);
+    const proj=view.projectionMatrix;
+    const viewM=view.transform.inverse.matrix;
+
+    // Réticule + grille
+    if(arHitOK&&!arAnchored){
+      arDrawLines(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.grid,0.2,0.85,0.4,0.45);
+      arDrawLines(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.ret,1,1,0.3,0.9);
+    }
+
+    if(!arAnchored)continue;
+
+    // ─── Scène complète depuis l'ancre ───
+    const ax=arAnchorX,ay=arAnchorY,az=arAnchorZ;
+    const ryM=AM.RY(arRotY);
+
+    // Calculer bbox de la pièce pour centrer
+    let mnx=0,mxx=3,mny=0,mxy=2.4;
+    if(SC.walls.length)for(const w of SC.walls)for(const p of w.pts){
+      mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);
+    }
+    const rcx=(mnx+mxx)/2,rcz=(mny+mxy)/2;
+    // Offset pour centrer la scène sur l'ancre
+    const baseM=AM.mul(AM.T(ax,ay,az),ryM);
+
+    function sceneM(wx,wy,wz){
+      // wx,wy,wz = coord plan (mètres), wz = profondeur plan
+      // On mappe: plan.x→monde.X, plan.y→monde.Z (profondeur), hauteur→monde.Y
+      const localT=AM.T(wx-rcx,wy,-(wz-rcz));
+      return AM.mul(baseM,localT);
+    }
+
+    // ─── Murs ───
+    if(arLayers.walls&&SC.walls.length){
+      const RH=SC.roomH;
+      const rW=mxx-mnx,rD=mxy-mny;
+      // Sol
+      const solM=AM.mul(baseM,AM.mul(AM.T(0,0,0),AM.S(rW,0.005,rD)));
+      const solMvp=AM.mvp(proj,viewM,AM.mul(baseM,AM.T(0,0,0)));
+      // Sol comme plan plat
+      const floorM=AM.mul(AM.mul(baseM,AM.T(0,0.001,0)),AM.S(rW,0.003,rD));
+      arDrawMesh(proj,viewM,floorM,arGeo.cube,0.4);
+
+      // Murs (4 faces semi-transparentes)
+      const walls4=[
+        [0,RH/2,rD/2,  rW,RH,0.04],  // nord
+        [0,RH/2,-rD/2, rW,RH,0.04],  // sud
+        [-rW/2,RH/2,0, 0.04,RH,rD],  // ouest
+        [rW/2,RH/2,0,  0.04,RH,rD],  // est
+      ];
+      for(const[x,y,z,sw,sh,sd] of walls4){
+        const wm=AM.mul(AM.mul(baseM,AM.T(x,y,-z)),AM.S(sw,sh,sd));
+        arDrawMesh(proj,viewM,wm,arGeo.cube,0.18);
       }
-      if (grabbed && selIdx >= 0) {
-        // Déplacer le cube saisi en temps réel
-        cubes[selIdx].x = hitX;
-        cubes[selIdx].y = hitY;
-        cubes[selIdx].z = hitZ;
+    }
+
+    // ─── Zones NF C 15-100 ───
+    if(arLayers.zones){
+      const ZH=2.25;
+      for(const s of SC.sanitaires){
+        const c=CAT_SAN[s.type];if(!c?.water||!c.zR)continue;
+        const{z1:r1,z2:r2}=c.zR;
+        const sx=s.x-rcx,sz=-(s.y-rcz);
+        // Z2
+        const z2m=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r2,ZH,c.d+2*r2));
+        arDrawMesh(proj,viewM,z2m,arGeo.cube,0.06);
+        const z2wm=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r2+.01,ZH,c.d+2*r2+.01));
+        arDrawLines(proj,viewM,z2wm,arGeo.ret,0.24,0.6,1,0.3);
+        // Z1
+        const z1m=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r1,ZH,c.d+2*r1));
+        arDrawMesh(proj,viewM,z1m,arGeo.cube,0.08);
+        const z1wm=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r1+.01,ZH,c.d+2*r1+.01));
+        arDrawLines(proj,viewM,z1wm,arGeo.ret,1,0.65,0.1,0.35);
+        // Z0 (empreinte sanitaire)
+        const z0m=AM.mul(AM.mul(baseM,AM.T(sx,(c.h3||.5)/2,sz)),AM.S(c.w,c.h3||.5,c.d));
+        arDrawMesh(proj,viewM,z0m,arGeo.cube,0.12);
+        // Plan H=2.25m
+        const hm=AM.mul(AM.mul(baseM,AM.T(sx,ZH,sz)),AM.S(c.w+2*r1,0.005,c.d+2*r1));
+        arDrawMesh(proj,viewM,hm,arGeo.cube,0.15);
+        // Sanitaire 3D
+        const sanM=AM.mul(AM.mul(baseM,AM.T(sx,(c.h3||.5)/2,sz)),AM.S(c.w,c.h3||.5,c.d));
+        arDrawMesh(proj,viewM,sanM,arGeo.cube,0.88);
+      }
+    }
+
+    // ─── Éléments électriques ───
+    if(arLayers.elec){
+      for(const el of SC.electrique){
+        const c=CAT_EL[el.type];if(!c)continue;
+        const{errs}=checkEl(el);
+        const ex=el.x-rcx,ez=-(el.y-rcz);
+        const elM=AM.mul(AM.mul(baseM,AM.T(ex,el.h,ez)),AM.S(0.08,0.04,0.08));
+        arDrawMesh(proj,viewM,elM,arGeo.cube,0.9);
+        // Ligne verticale
+        const lineM=AM.mul(AM.mul(baseM,AM.T(ex,el.h/2,ez)),AM.S(0.01,el.h,0.01));
+        arDrawMesh(proj,viewM,lineM,arGeo.cube,0.35);
+        // Halo erreur
+        if(errs.length){
+          const halo=AM.mul(AM.mul(baseM,AM.T(ex,el.h,ez)),AM.S(0.15,0.005,0.15));
+          arDrawMesh(proj,viewM,halo,arGeo.cube,0.6);
+        }
       }
     }
   }
 
-  // ── Position et direction caméra (pour la visée) ──
-  const camMat = pose.transform.matrix;
-  const camPos = [camMat[12], camMat[13], camMat[14]];
-  // Direction = -Z de la matrice caméra (colonne 2, négative)
-  const camFwd = [-camMat[8], -camMat[9], -camMat[10]];
-
-  // Calculer quel cube est visé
-  if (!grabbed) {
-    aimIdx = updateAim(camPos, camFwd);
-  }
-
-  // Mettre à jour le réticule visuel
-  const ring = document.getElementById('ring');
-  if (aimIdx >= 0) {
-    ring.className='xring grab'; // violet = cube visé
-  } else if (hitOK) {
-    ring.className='xring hit';  // vert = surface détectée
-  } else {
-    ring.className='xring';      // blanc = rien
-  }
-
-  // Status
-  if (frameN % 30 === 0) {
-    if (grabbed) {
-      setSt(`Déplacement cube #${cubes[selIdx].id}…`,'#a78bfa');
-    } else if (aimIdx >= 0) {
-      setSt(`Cube #${cubes[aimIdx].id} visé — tap pour sélectionner`,'#c4b5fd');
-    } else if (hitOK) {
-      setSt(`Surface (${hitX.toFixed(2)}, ${hitY.toFixed(2)}, ${hitZ.toFixed(2)})`,'#34d399');
-    } else {
-      setSt('Cherche surface…','#fbbf24');
-    }
-  }
-
-  for (const view of pose.views) {
-    const vp = layer.getViewport(view);
-    gl.viewport(vp.x, vp.y, vp.width, vp.height);
-
-    const proj  = view.projectionMatrix;
-    const viewM = view.transform.inverse.matrix;
-
-    // ── Grille sur la surface détectée ──
-    if (hitOK && !grabbed) {
-      drawLines(proj, viewM,
-        M.translate(hitX, hitY, hitZ),
-        glGrid, 0.2,0.85,0.4, 0.45);
-    }
-
-    // ── Réticule sol (pendant grab = position cible) ──
-    if (hitOK && grabbed) {
-      drawLines(proj, viewM,
-        M.translate(hitX, hitY, hitZ),
-        glReticle, 0.7,0.4,1.0, 0.9);
-    } else if (hitOK) {
-      drawLines(proj, viewM,
-        M.translate(hitX, hitY, hitZ),
-        glReticle, 1.0,1.0,0.3, 0.8);
-    }
-
-    // ── Cubes ──
-    for (let i=0; i<cubes.length; i++) {
-      const c = cubes[i];
-
-      // Mode de surbrillance
-      // 0=normal  1=sélectionné  2=visé  3=saisi
-      let selMode = 0;
-      if (grabbed && i===selIdx)   selMode = 3;
-      else if (i===selIdx)         selMode = 1;
-      else if (i===aimIdx)         selMode = 2;
-
-      // Modèle : translation sol + levé 10cm
-      // PAS DE ROTATION — le cube reste orienté fixe
-      const model = M.translate(c.x, c.y + 0.10, c.z);
-      drawCube(proj, viewM, model, selMode);
-
-      // Halo de sélection (lignes autour)
-      if (i===selIdx || i===aimIdx) {
-        const haloScale = 0.115;
-        const hs = M.mul(
-          M.translate(c.x, c.y+0.10, c.z),
-          M.scale(haloScale, haloScale, haloScale)
-        );
-        const col = (i===selIdx && grabbed) ? [0.7,0.3,1.0,0.8] :
-                    i===selIdx              ? [1.0,0.85,0.2,0.8] :
-                                              [0.7,0.5,1.0,0.6];
-        drawLines(proj, viewM, hs, glReticle, ...col);
-      }
-
-      // Ombre au sol
-      const shadow = M.mul(
-        M.translate(c.x, c.y+0.001, c.z),
-        M.scale(0.13, 0.001, 0.13)
-      );
-      drawCube(proj, viewM, shadow, 0);
-    }
+  // HUD updates
+  if(arFrameN%30===0){
+    const ring=document.getElementById('xring');
+    if(arAnchored){ring.className='';ring.style.borderColor='#60a5fa';}
+    else if(arHitOK){ring.className='hit';}
+    else{ring.className='';}
+    if(!arAnchored&&arHitOK)arSetSt(`Surface (${arHitX.toFixed(2)}, ${arHitY.toFixed(2)}, ${arHitZ.toFixed(2)})`,'ok');
+    document.getElementById('arInfoTxt').textContent=
+      `${SC.sanitaires.length} san. · ${SC.electrique.length} él.`;
+    if(arAnchored)updateVolBox();
   }
 }
 
-// ── UI helpers ──
-function setSt(t,c){ const s=document.getElementById('status'); s.textContent=t; s.style.color=c||'#fff'; }
-function show(id){ document.getElementById(id).style.display='block'; }
-function hide(id){ document.getElementById(id).style.display='none'; }
-function tog(id,v){ document.getElementById(id).style.display=v?'block':'none'; }
+function updateVolBox(){
+  const v=calcVols();
+  document.getElementById('arVol').innerHTML=`
+    <div class="vt">Volumes NF C 15-100</div>
+    <div class="vr"><span class="vk">Pièce</span><span class="vv">${v.roomVol.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 0</span><span class="vv" style="color:#ef4444">${v.z0.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 1</span><span class="vv" style="color:#f59e0b">${v.z1.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 2</span><span class="vv" style="color:#93c5fd">${v.z2.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Hors zone</span><span class="vv" style="color:#22c55e">${v.hors.toFixed(2)} m³</span></div>`;
+}
+
+function arSetSt(t,type){
+  document.getElementById('arSt').textContent=t;
+  document.getElementById('arDot').className='sdt '+(type||'scan');
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  // Pré-remplir pièce demo
+  SC.walls=[{pts:[{x:.2,y:.2},{x:3.2,y:.2},{x:3.2,y:2.6},{x:.2,y:2.6}],closed:true}];
+});
+window.addEventListener('resize',()=>{
+  if(dcv){const w=document.getElementById('drawWrap');dcv.width=w.clientWidth;dcv.height=w.clientHeight;redraw();}
+  if(ocv){const w=document.getElementById('openWrap');ocv.width=w.clientWidth;ocv.height=w.clientHeight;redrawOpen();}
+  if(scv){const w=document.getElementById('sanWrap');scv.width=w.clientWidth;scv.height=w.clientHeight;redrawSan();}
+  if(ecv){const w=document.getElementById('elWrap');ecv.width=w.clientWidth;ecv.height=w.clientHeight;redrawEl();}
+});
 </script>
 </body>
 </html>
