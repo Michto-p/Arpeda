@@ -187,6 +187,7 @@ canvas.main{display:block;touch-action:none;width:100%;height:100%}
 <div id="home">
   <div class="home-logo">Élec<span>Studio</span></div>
   <div class="home-sub">Créez votre salle de bain étape par étape, visualisez en réalité augmentée avec les zones NF C 15-100.</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;color:rgba(255,255,255,.25);letter-spacing:.5px">v2.1 — caméra AR corrigée</div>
   <button class="home-btn" onclick="showWizard()">✦ Créer une scène</button>
   <button class="home-btn" style="background:transparent;border:1.5px solid var(--bor);margin-top:-8px" onclick="startAR()">📷 Voir en RA</button>
 </div>
@@ -1238,11 +1239,470 @@ function renderNorms(){
 // ══════════════════════════════════════════════
 let arSes, arRef, arHitSrc;
 let arGL, arProg, arProgLine, arBuilt=false;
-let arAnchored=false, arAnchorX=0, arAnchorY=0, arAnchorZ=0;
-let arRotY=0, arHitX=0, arHitY=0, arHitZ=0, arHitOK=false;
+let arAnchored=false;
+// Ancrage 2 taps :
+// Step 0 → tap1 = point A (coin)
+// Step 1 → tap2 = point B (coin opposé) → déduit orientation + scale
+// Step 2 → ancré
+let arAnchorStep=0;
+let arA=null, arB=null;
+let arAnchorX=0,arAnchorY=0,arAnchorZ=0;
+let arRotY=0, arSceneScale=1.0;
+let arHitX=0, arHitY=0, arHitZ=0, arHitOK=false;
 let arLayers={zones:true,elec:true,walls:true};
 let arFrameN=0;
 let arGeo={};
+
+function toggleARLyr(k){
+  arLayers[k]=!arLayers[k];
+  document.getElementById('b'+k[0].toUpperCase()+k.slice(1)).classList.toggle('on',arLayers[k]);
+}
+
+async function startAR(){
+  if(!navigator.xr){alert('WebXR non disponible.\nChrome Android + ARCore requis.');return;}
+  const supported=await navigator.xr.isSessionSupported('immersive-ar').catch(()=>false);
+  if(!supported){alert('AR non supportée.\nVérifiez ARCore dans le Play Store.');return;}
+
+  document.getElementById('home').style.display='none';
+  document.getElementById('wizard').style.display='none';
+  document.getElementById('scrAR').style.display='block';
+  arSetSt('Ouverture caméra…','scan');
+
+  const cv=document.getElementById('arCanvas');
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  cv.style.width=window.innerWidth+'px'; cv.style.height=window.innerHeight+'px';
+
+  try{
+    arSes=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['hit-test'],
+      optionalFeatures:['dom-overlay','local-floor'],
+      domOverlay:{root:document.getElementById('scrAR')}
+    });
+  }catch(e){
+    document.getElementById('scrAR').style.display='none';
+    document.getElementById('wizard').style.display='flex';
+    alert('Erreur AR:\n'+e.message); return;
+  }
+
+  arSetSt('Calibration…','scan');
+  arAnchorStep=0; arA=null; arB=null; arAnchored=false;
+  arSceneScale=1.0; arRotY=0;
+  arUpdPlaceUI();
+
+  arSes.addEventListener('end',()=>{
+    document.getElementById('scrAR').style.display='none';
+    document.getElementById('wizard').style.display='flex';
+    arAnchored=false; arBuilt=false; arSes=null; arAnchorStep=0;
+  });
+  arSes.addEventListener('select',arOnTap);
+
+  // PAS de alpha:false — WebXR gère le fond caméra
+  arGL=cv.getContext('webgl',{xrCompatible:true,alpha:false,antialias:true,depth:true});
+  await arGL.makeXRCompatible();
+  const bl=new XRWebGLLayer(arSes,arGL,{framebufferScaleFactor:1.0});
+  arSes.updateRenderState({baseLayer:bl,depthNear:0.05,depthFar:100.0});
+
+  try{arRef=await arSes.requestReferenceSpace('local-floor');}
+  catch{arRef=await arSes.requestReferenceSpace('local');}
+
+  await arStartHit();
+  arBuildGL();
+  arSes.requestAnimationFrame(arLoop);
+}
+
+async function arStartHit(){
+  const vs=await arSes.requestReferenceSpace('viewer');
+  arHitSrc=await arSes.requestHitTestSource({space:vs});
+}
+function arStopHit(){if(arHitSrc){try{arHitSrc.cancel();}catch{}arHitSrc=null;}}
+
+// ── ANCRAGE 2 TAPS ──
+function arOnTap(){
+  if(!arHitOK)return;
+  if(arAnchorStep===0){
+    arA={x:arHitX,y:arHitY,z:arHitZ};
+    arAnchorStep=1;
+    arSetSt('Tap 2 → pointez le coin opposé pour orienter la pièce','ok');
+    arUpdPlaceUI();
+  } else if(arAnchorStep===1){
+    arB={x:arHitX,y:arHitY,z:arHitZ};
+    const dx=arB.x-arA.x, dz=arB.z-arA.z;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+    // Orientation : axe X de la scène s'aligne sur A→B
+    arRotY=Math.atan2(dx,dz);
+    // Scale : distance entre les 2 points = largeur de la pièce
+    let mnx=0,mxx=3;
+    if(SC.walls.length)for(const w of SC.walls)for(const p of w.pts){mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);}
+    const roomW=mxx-mnx||3;
+    arSceneScale=Math.max(0.1,dist/roomW);
+    arAnchorX=arA.x; arAnchorY=arA.y; arAnchorZ=arA.z;
+    arAnchored=true; arAnchorStep=2;
+    arStopHit();
+    arSetSt('Scène ancrée ✓  Marchez à l\'intérieur !','go');
+    arUpdPlaceUI(); updateVolBox();
+  }
+}
+
+function arPlaceScene(){ arOnTap(); }
+
+function arReanchor(){
+  arAnchored=false; arAnchorStep=0; arA=null; arB=null;
+  arSceneScale=1.0; arRotY=0;
+  arStartHit();
+  arSetSt('Tap 1 → premier coin de la pièce','scan');
+  arUpdPlaceUI();
+}
+function resetARScene(){arReanchor();}
+function arRotate(d){arRotY+=d*Math.PI/180;}
+
+function arUpdPlaceUI(){
+  const btn=document.getElementById('arPlaceBtn');
+  if(arAnchorStep===0)     {btn.textContent='📍 Tap 1 : premier coin';btn.style.background='#2563eb';}
+  else if(arAnchorStep===1){btn.textContent='📐 Tap 2 : coin opposé'; btn.style.background='#7c3aed';}
+  else                     {btn.textContent='✓ Ancré';                 btn.style.background='#059669';}
+}
+
+function closeAR(){ if(arSes)arSes.end(); }
+
+// ── GL SETUP ──
+function arBuildGL(){
+  if(arBuilt)return; arBuilt=true;
+  const gl=arGL;
+
+  arProg=arMkProg(gl,`
+    attribute vec3 aPos;attribute vec3 aCol;attribute vec3 aNorm;
+    uniform mat4 uMVP;uniform mat4 uM;
+    varying vec3 vCol;varying vec3 vNorm;
+    void main(){
+      gl_Position=uMVP*vec4(aPos,1.0);
+      vNorm=normalize(vec3(uM*vec4(aNorm,0.0)));
+      vCol=aCol;
+    }`,`
+    precision mediump float;
+    varying vec3 vCol;varying vec3 vNorm;
+    uniform float uAlpha;
+    void main(){
+      vec3 L=normalize(vec3(0.6,1.5,0.8));
+      float d=max(dot(vNorm,L),0.0)*0.65+0.35;
+      gl_FragColor=vec4(vCol*d,uAlpha);
+    }`);
+
+  arProgLine=arMkProg(gl,`
+    attribute vec3 aPos;uniform mat4 uMVP;
+    void main(){gl_Position=uMVP*vec4(aPos,1.0);}`,`
+    precision mediump float;uniform vec4 uCol;
+    void main(){gl_FragColor=uCol;}`);
+
+  // Cube unitaire [-0.5,0.5]
+  const s=0.5;
+  const faces=[
+    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],     n:[0,0,1],  c:[.35,.65,1.0]},
+    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],  n:[0,0,-1], c:[.18,.45,.92]},
+    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],       n:[1,0,0],  c:[.22,.72,.92]},
+    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],  n:[-1,0,0], c:[.20,.55,.92]},
+    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],       n:[0,1,0],  c:[.85,.93,1.0]},
+    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],   n:[0,-1,0], c:[.12,.32,.65]},
+  ];
+  const cv=[],ci=[];
+  faces.forEach(({v,n,c},fi)=>{
+    const b=fi*4; v.forEach(p=>cv.push(...p,...c,...n));
+    ci.push(b,b+1,b+2,b,b+2,b+3);
+  });
+  arGeo.cube=arMkMesh(gl,new Float32Array(cv),new Uint16Array(ci));
+
+  // Réticule
+  const rv=[]; const R=0.07;
+  rv.push(-R,0,0,R,0,0, 0,0,-R,0,0,R);
+  for(let i=0;i<32;i++){const a=i/32*Math.PI*2,b=(i+1)/32*Math.PI*2;rv.push(Math.cos(a)*R,0,Math.sin(a)*R,Math.cos(b)*R,0,Math.sin(b)*R);}
+  arGeo.ret=arMkLines(gl,new Float32Array(rv));
+
+  // Grille 2m×2m pas 20cm
+  const gv=[];
+  for(let i=-10;i<=10;i++){gv.push(i*.1,0,-1,i*.1,0,1,-1,0,i*.1,1,0,i*.1);}
+  arGeo.grid=arMkLines(gl,new Float32Array(gv));
+}
+
+function arMkProg(gl,vsrc,fsrc){
+  const vs=gl.createShader(gl.VERTEX_SHADER);gl.shaderSource(vs,vsrc);gl.compileShader(vs);
+  const fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(fs,fsrc);gl.compileShader(fs);
+  const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);return p;
+}
+function arMkMesh(gl,verts,idx){
+  const vbo=gl.createBuffer(),ibo=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
+  return{vbo,ibo,count:idx.length};
+}
+function arMkLines(gl,verts){
+  const vbo=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);return{vbo,count:verts.length/3};
+}
+function arMkLinesData(verts){return arMkLines(arGL,new Float32Array(verts));}
+
+// Matrices column-major
+const AM={
+  id(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])},
+  mul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)o[c*4+r]+=a[k*4+r]*b[c*4+k];return o;},
+  T(x,y,z){const m=AM.id();m[12]=x;m[13]=y;m[14]=z;return m;},
+  S(x,y,z){const m=AM.id();m[0]=x;m[5]=y;m[10]=z;return m;},
+  RY(a){const c=Math.cos(a),s=Math.sin(a),m=AM.id();m[0]=c;m[8]=s;m[2]=-s;m[10]=c;return m;},
+  mvp(p,v,m){return AM.mul(AM.mul(p,v),m);}
+};
+
+function arDrawMesh(proj,view,model,geo,alpha){
+  const gl=arGL,mvp=AM.mvp(proj,view,model);
+  gl.useProgram(arProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER,geo.vbo);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,geo.ibo);
+  const s=36;
+  const sa=(n,sz,o)=>{const l=gl.getAttribLocation(arProg,n);if(l<0)return;gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,sz,gl.FLOAT,false,s,o*4);};
+  sa('aPos',3,0);sa('aCol',3,3);sa('aNorm',3,6);
+  gl.uniformMatrix4fv(gl.getUniformLocation(arProg,'uMVP'),false,mvp);
+  gl.uniformMatrix4fv(gl.getUniformLocation(arProg,'uM'),false,model);
+  gl.uniform1f(gl.getUniformLocation(arProg,'uAlpha'),alpha||1);
+  gl.drawElements(gl.TRIANGLES,geo.count,gl.UNSIGNED_SHORT,0);
+}
+
+function arDrawLines(proj,view,model,geo,r,g,b,a){
+  const gl=arGL,mvp=AM.mvp(proj,view,model);
+  gl.useProgram(arProgLine);
+  gl.bindBuffer(gl.ARRAY_BUFFER,geo.vbo);
+  const l=gl.getAttribLocation(arProgLine,'aPos');
+  gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);
+  gl.uniformMatrix4fv(gl.getUniformLocation(arProgLine,'uMVP'),false,mvp);
+  gl.uniform4fv(gl.getUniformLocation(arProgLine,'uCol'),[r,g,b,a]);
+  gl.drawArrays(gl.LINES,0,geo.count);
+}
+
+// ── BOUCLE AR ──
+function arLoop(t,frame){
+  arSes.requestAnimationFrame(arLoop);
+  if(!arGeo.cube)return;
+  arFrameN++;
+  const gl=arGL;
+  const layer=arSes.renderState.baseLayer;
+  gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+  // Effacer SEULEMENT le depth — WebXR met la caméra en fond
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+
+  const pose=frame.getViewerPose(arRef); if(!pose)return;
+
+  // Hit-test
+  if(arHitSrc){
+    const hits=frame.getHitTestResults(arHitSrc);
+    arHitOK=hits.length>0;
+    if(arHitOK){
+      const hp=hits[0].getPose(arRef);
+      if(hp){arHitX=hp.transform.matrix[12];arHitY=hp.transform.matrix[13];arHitZ=hp.transform.matrix[14];}
+    }
+  }
+
+  for(const view of pose.views){
+    const vp=layer.getViewport(view);
+    gl.viewport(vp.x,vp.y,vp.width,vp.height);
+    const proj=view.projectionMatrix;
+    const viewM=view.transform.inverse.matrix;
+
+    // ── Phase 0 : attente tap 1 ──
+    if(arAnchorStep===0&&arHitOK){
+      arDrawLines(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.grid,0.2,0.85,0.4,0.5);
+      arDrawLines(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.ret,1,1,0.3,1);
+    }
+
+    // ── Phase 1 : tap 1 posé, attente tap 2 ──
+    if(arAnchorStep===1&&arA){
+      // Point A = vert fixe
+      arDrawLines(proj,viewM,AM.T(arA.x,arA.y+0.01,arA.z),arGeo.ret,0.2,1,0.4,1);
+      if(arHitOK){
+        // Point courant = violet
+        arDrawLines(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.ret,0.7,0.3,1,1);
+        // Ligne A→hit
+        const lg=arMkLinesData([0,0.02,0,arHitX-arA.x,0.02,arHitZ-arA.z]);
+        arDrawLines(proj,viewM,AM.T(arA.x,arA.y,arA.z),lg,1,0.85,0.1,0.9);
+        // Distance
+        const d=Math.sqrt(Math.pow(arHitX-arA.x,2)+Math.pow(arHitZ-arA.z,2));
+        if(arFrameN%15===0)arSetSt(`Tap 2 — ${d.toFixed(2)}m`,'ok');
+      }
+    }
+
+    if(!arAnchored)continue;
+
+    // ══ SCÈNE COMPLÈTE ══
+    let mnx=0,mxx=3,mny=0,mxy=2.4;
+    if(SC.walls.length)for(const w of SC.walls)for(const p of w.pts){
+      mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);
+    }
+    const rcx=(mnx+mxx)/2, rcz=(mny+mxy)/2;
+    const sc=arSceneScale;
+    const RH=SC.roomH||2.5, rW=(mxx-mnx)*sc, rD=(mxy-mny)*sc;
+
+    // Matrice de base : ancre → rotation des 2 taps
+    const baseM=AM.mul(AM.T(arAnchorX,arAnchorY,arAnchorZ),AM.RY(arRotY));
+
+    // Helper : transforme coordonnées plan en matrice monde
+    // lx,lz = coords plan, ly = hauteur, sx,sy,sz = taille
+    function wM(lx,ly,lz){
+      return AM.mul(baseM,AM.T((lx-rcx)*sc,ly,-(lz-rcz)*sc));
+    }
+    function wMS(lx,ly,lz,sx,sy,sz){
+      return AM.mul(wM(lx,ly,lz),AM.S(sx*sc,sy,sz*sc));
+    }
+
+    // ── SOL ──
+    if(arLayers.walls){
+      // Dalle
+      const flM=AM.mul(baseM,AM.S(rW,0.01,rD));
+      arDrawMesh(proj,viewM,flM,arGeo.cube,0.55);
+      // Carrelage (lignes)
+      const ts=0.40*sc;
+      for(let x=-rW/2;x<=rW/2;x+=ts){
+        const b=arMkLinesData([x,0.012,-rD/2,x,0.012,rD/2]);
+        arDrawLines(proj,viewM,baseM,b,0.55,0.75,0.95,0.35);
+      }
+      for(let z=-rD/2;z<=rD/2;z+=ts){
+        const b=arMkLinesData([-rW/2,0.012,z,rW/2,0.012,z]);
+        arDrawLines(proj,viewM,baseM,b,0.55,0.75,0.95,0.35);
+      }
+
+      // ── MURS semi-transparents ──
+      const wt=0.035*sc;
+      // nord
+      arDrawMesh(proj,viewM,AM.mul(baseM,AM.mul(AM.T(0,RH/2,-rD/2),AM.S(rW,RH,wt))),arGeo.cube,0.28);
+      // sud
+      arDrawMesh(proj,viewM,AM.mul(baseM,AM.mul(AM.T(0,RH/2,rD/2),AM.S(rW,RH,wt))),arGeo.cube,0.28);
+      // ouest
+      arDrawMesh(proj,viewM,AM.mul(baseM,AM.mul(AM.T(-rW/2,RH/2,0),AM.S(wt,RH,rD))),arGeo.cube,0.28);
+      // est
+      arDrawMesh(proj,viewM,AM.mul(baseM,AM.mul(AM.T(rW/2,RH/2,0),AM.S(wt,RH,rD))),arGeo.cube,0.28);
+
+      // ── ARÊTES VERTICALES — très visibles ──
+      const corners=[[-rW/2,-rD/2],[rW/2,-rD/2],[rW/2,rD/2],[-rW/2,rD/2]];
+      for(const[cx2,cz2] of corners){
+        const b=arMkLinesData([cx2,0,cz2,cx2,RH,cz2]);
+        arDrawLines(proj,viewM,baseM,b,0.65,0.85,1.0,0.95);
+      }
+      // ── ARÊTES HORIZONTALES haut ──
+      const topE=[
+        [-rW/2,RH,-rD/2, rW/2,RH,-rD/2],
+        [rW/2,RH,-rD/2,  rW/2,RH,rD/2],
+        [rW/2,RH,rD/2,  -rW/2,RH,rD/2],
+        [-rW/2,RH,rD/2, -rW/2,RH,-rD/2],
+      ];
+      for(const e of topE){
+        arDrawLines(proj,viewM,baseM,arMkLinesData(e),0.65,0.85,1.0,0.75);
+      }
+      // ── ARÊTES BAS (sol) ──
+      const botE=[
+        [-rW/2,0.01,-rD/2, rW/2,0.01,-rD/2],
+        [rW/2,0.01,-rD/2,  rW/2,0.01,rD/2],
+        [rW/2,0.01,rD/2,  -rW/2,0.01,rD/2],
+        [-rW/2,0.01,rD/2, -rW/2,0.01,-rD/2],
+      ];
+      for(const e of botE){
+        arDrawLines(proj,viewM,baseM,arMkLinesData(e),0.65,0.85,1.0,0.6);
+      }
+
+      // Plafond très léger
+      arDrawMesh(proj,viewM,AM.mul(baseM,AM.mul(AM.T(0,RH,0),AM.S(rW,0.006,rD))),arGeo.cube,0.07);
+    }
+
+    // ── SANITAIRES ──
+    for(const san of SC.sanitaires){
+      const c=CAT_SAN[san.type]; if(!c)continue;
+      const h=c.h3||0.5;
+      // Corps
+      arDrawMesh(proj,viewM,wMS(san.x,h/2,san.y,c.w,h,c.d),arGeo.cube,0.88);
+      // Contour
+      arDrawLines(proj,viewM,wMS(san.x,h/2,san.y,c.w+0.01,h+0.01,c.d+0.01),arGeo.ret,0.5,0.82,1.0,0.75);
+      // Surface eau
+      if(c.water&&h>0.02){
+        arDrawMesh(proj,viewM,wMS(san.x,h+0.004,san.y,c.w*0.88,0.006,c.d*0.88),arGeo.cube,0.52);
+      }
+    }
+
+    // ── ZONES ──
+    if(arLayers.zones){
+      const ZH=2.25;
+      for(const san of SC.sanitaires){
+        const c=CAT_SAN[san.type]; if(!c?.water||!c.zR)continue;
+        const{z1:r1,z2:r2}=c.zR;
+
+        // Z2 bleu
+        arDrawMesh(proj,viewM,wMS(san.x,ZH/2,san.y,c.w+2*r2,ZH,c.d+2*r2),arGeo.cube,0.07);
+        arDrawLines(proj,viewM,wMS(san.x,ZH/2,san.y,c.w+2*r2+.01,ZH,c.d+2*r2+.01),arGeo.ret,0.22,0.52,1.0,0.45);
+
+        // Z1 orange
+        arDrawMesh(proj,viewM,wMS(san.x,ZH/2,san.y,c.w+2*r1,ZH,c.d+2*r1),arGeo.cube,0.10);
+        arDrawLines(proj,viewM,wMS(san.x,ZH/2,san.y,c.w+2*r1+.01,ZH,c.d+2*r1+.01),arGeo.ret,1.0,0.62,0.1,0.5);
+
+        // Z0 rouge
+        arDrawMesh(proj,viewM,wMS(san.x,(c.h3||.5)/2,san.y,c.w,c.h3||.5,c.d),arGeo.cube,0.14);
+
+        // Plafond H=2.25m orange + arêtes
+        const cW=(c.w+2*r1)*sc, cD=(c.d+2*r1)*sc;
+        arDrawMesh(proj,viewM,wMS(san.x,ZH,san.y,c.w+2*r1,0.008,c.d+2*r1),arGeo.cube,0.22);
+        const cb=AM.mul(baseM,AM.T((san.x-rcx)*sc,ZH,-(san.y-rcz)*sc));
+        for(const e of [
+          [-cW/2,0,-cD/2,cW/2,0,-cD/2],[cW/2,0,-cD/2,cW/2,0,cD/2],
+          [cW/2,0,cD/2,-cW/2,0,cD/2],[-cW/2,0,cD/2,-cW/2,0,-cD/2]
+        ]){arDrawLines(proj,viewM,cb,arMkLinesData(e),1.0,0.75,0.1,0.75);}
+      }
+    }
+
+    // ── ÉLECTRIQUE ──
+    if(arLayers.elec){
+      for(const el of SC.electrique){
+        const c=CAT_EL[el.type]; if(!c)continue;
+        const{errs}=checkEl(el);
+        const ok=errs.length===0;
+        // Disque appareillage
+        arDrawMesh(proj,viewM,wMS(el.x,el.h,el.y,0.10,0.04,0.10),arGeo.cube,0.9);
+        // Halo couleur
+        arDrawMesh(proj,viewM,wMS(el.x,el.h,el.y,0.15,0.006,0.15),arGeo.cube,ok?0.35:0.7);
+        // Tige au sol
+        arDrawMesh(proj,viewM,wMS(el.x,el.h/2,el.y,0.014,el.h,0.014),arGeo.cube,ok?0.28:0.55);
+      }
+    }
+
+    // Point A (si step>=1)
+    if(arAnchorStep>=1&&arA){
+      arDrawLines(proj,viewM,AM.T(arA.x,arA.y+0.01,arA.z),arGeo.ret,0.2,1,0.5,1);
+    }
+  }
+
+  // HUD
+  if(arFrameN%30===0){
+    const ring=document.getElementById('xring');
+    if(arAnchored)         ring.style.borderColor='#60a5fa';
+    else if(arAnchorStep===1) ring.style.borderColor='#a78bfa';
+    else if(arHitOK)       ring.style.borderColor='#22c55e';
+    else                   ring.style.borderColor='rgba(255,255,255,.4)';
+
+    if(!arAnchored&&arHitOK&&arAnchorStep===0)
+      arSetSt(`Tap 1 — sol (${arHitX.toFixed(2)}, ${arHitZ.toFixed(2)})`,'ok');
+    document.getElementById('arInfoTxt').textContent=
+      `${SC.sanitaires.length} san. · ${SC.electrique.length} él. · ×${arSceneScale.toFixed(2)}`;
+    if(arAnchored)updateVolBox();
+  }
+}
+
+function updateVolBox(){
+  const v=calcVols();
+  document.getElementById('arVol').innerHTML=`
+    <div class="vt">Volumes NF C 15-100</div>
+    <div class="vr"><span class="vk">Pièce</span><span class="vv">${v.roomVol.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 0</span><span class="vv" style="color:#ef4444">${v.z0.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 1</span><span class="vv" style="color:#f59e0b">${v.z1.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Zone 2</span><span class="vv" style="color:#93c5fd">${v.z2.toFixed(2)} m³</span></div>
+    <div class="vr"><span class="vk">Hors zone</span><span class="vv" style="color:#22c55e">${v.hors.toFixed(2)} m³</span></div>`;
+}
+
+function arSetSt(t,type){
+  document.getElementById('arSt').textContent=t;
+  document.getElementById('arDot').className='sdt '+(type||'scan');
+}
 
 function toggleARLyr(k){
   arLayers[k]=!arLayers[k];
@@ -1266,6 +1726,8 @@ async function startAR(){
   const cv = document.getElementById('arCanvas');
   cv.width  = window.innerWidth;
   cv.height = window.innerHeight;
+  cv.style.width  = window.innerWidth  + 'px';
+  cv.style.height = window.innerHeight + 'px';
 
   try{
     arSes=await navigator.xr.requestSession('immersive-ar',{
@@ -1290,18 +1752,26 @@ async function startAR(){
   });
   arSes.addEventListener('select',arOnTap);
 
-  // WebGL — le canvas doit être xrCompatible
-  arGL = cv.getContext('webgl',{xrCompatible:true, alpha:true, antialias:true});
-  await arGL.makeXRCompatible();
-
-  // XRWebGLLayer avec scaleFactor=1 pour éviter écran noir
-  const baseLayer = new XRWebGLLayer(arSes, arGL, {
-    alpha: true,
+  // ⚠️ IMPORTANT : PAS de alpha:true sur le contexte WebGL
+  // C'est WebXR qui gère la transparence vers la caméra
+  // alpha:true = fond noir car le canvas est transparent mais pas la caméra
+  arGL = cv.getContext('webgl',{
+    xrCompatible: true,
+    alpha: false,        // NE PAS mettre true → caméra visible
     antialias: true,
     depth: true,
+    stencil: false
+  });
+  await arGL.makeXRCompatible();
+
+  const baseLayer = new XRWebGLLayer(arSes, arGL, {
     framebufferScaleFactor: 1.0
   });
-  arSes.updateRenderState({ baseLayer });
+  arSes.updateRenderState({
+    baseLayer,
+    depthNear: 0.05,
+    depthFar: 100.0
+  });
 
   try{arRef=await arSes.requestReferenceSpace('local-floor');}
   catch{arRef=await arSes.requestReferenceSpace('local');}
@@ -1344,287 +1814,10 @@ function closeAR(){
   if(arSes)arSes.end();
 }
 
-// ─── Build GL ───
-function arBuildGL(){
-  if(arBuilt)return;arBuilt=true;
-  const gl=arGL;
-
-  arProg=arMkProg(gl,`
-    attribute vec3 aPos;attribute vec3 aCol;attribute vec3 aNorm;
-    uniform mat4 uMVP;uniform mat4 uM;
-    varying vec3 vCol;varying vec3 vNorm;
-    void main(){
-      gl_Position=uMVP*vec4(aPos,1.0);
-      vNorm=normalize(vec3(uM*vec4(aNorm,0.0)));
-      vCol=aCol;
-    }`,`
-    precision mediump float;
-    varying vec3 vCol;varying vec3 vNorm;
-    uniform float uAlpha;
-    void main(){
-      float d=max(dot(vNorm,normalize(vec3(0.8,1.5,0.6))),0.0)*0.6+0.4;
-      gl_FragColor=vec4(vCol*d,uAlpha);
-    }`);
-
-  arProgLine=arMkProg(gl,`
-    attribute vec3 aPos;uniform mat4 uMVP;
-    void main(){gl_Position=uMVP*vec4(aPos,1.0);}`,`
-    precision mediump float;uniform vec4 uCol;
-    void main(){gl_FragColor=uCol;}`);
-
-  // Cube unitaire avec normales
-  const s=0.5;
-  const faces=[
-    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],     n:[0,0,1], c:[.3,.6,1.0]},
-    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],  n:[0,0,-1],c:[.15,.4,.9]},
-    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],       n:[1,0,0], c:[.2,.7,.9]},
-    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],  n:[-1,0,0],c:[.2,.5,.9]},
-    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],       n:[0,1,0], c:[.8,.9,1.0]},
-    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],   n:[0,-1,0],c:[.1,.3,.6]},
-  ];
-  const cv=[],ci=[];
-  faces.forEach(({v,n,c},fi)=>{
-    const b=fi*4;v.forEach(p=>cv.push(...p,...c,...n));
-    ci.push(b,b+1,b+2,b,b+2,b+3);
-  });
-  arGeo.cube=arMkMesh(gl,new Float32Array(cv),new Uint16Array(ci));
-
-  // Réticule
-  const rv=[];const R=0.06;
-  rv.push(-R,0,0,R,0,0,0,0,-R,0,0,R);
-  for(let i=0;i<32;i++){const a=i/32*Math.PI*2,b=(i+1)/32*Math.PI*2;rv.push(Math.cos(a)*R,0,Math.sin(a)*R,Math.cos(b)*R,0,Math.sin(b)*R);}
-  arGeo.ret=arMkLines(gl,new Float32Array(rv));
-
-  // Grille sol
-  const gv=[];for(let i=-5;i<=5;i++){gv.push(i*.1,0,-.5,i*.1,0,.5,-.5,0,i*.1,.5,0,i*.1);}
-  arGeo.grid=arMkLines(gl,new Float32Array(gv));
-}
-
-function arMkProg(gl,vsrc,fsrc){
-  const vs=gl.createShader(gl.VERTEX_SHADER);gl.shaderSource(vs,vsrc);gl.compileShader(vs);
-  const fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(fs,fsrc);gl.compileShader(fs);
-  const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);return p;
-}
-function arMkMesh(gl,verts,idx){
-  const vbo=gl.createBuffer(),ibo=gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
-  return{vbo,ibo,count:idx.length};
-}
-function arMkLines(gl,verts){
-  const vbo=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
-  gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);return{vbo,count:verts.length/3};
-}
-
-// Matrices column-major
-const AM={
-  id(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])},
-  mul(a,b){
-    const o=new Float32Array(16);
-    for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)o[c*4+r]+=a[k*4+r]*b[c*4+k];
-    return o;
-  },
-  T(x,y,z){const m=AM.id();m[12]=x;m[13]=y;m[14]=z;return m;},
-  S(x,y,z){const m=AM.id();m[0]=x;m[5]=y;m[10]=z;return m;},
-  RY(a){const c=Math.cos(a),s=Math.sin(a),m=AM.id();m[0]=c;m[8]=s;m[2]=-s;m[10]=c;return m;},
-  mvp(proj,view,model){return AM.mul(AM.mul(proj,view),model);}
-};
-
-function arDrawMesh(proj,view,model,geo,alpha=1,prog=arProg){
-  const gl=arGL;
-  const mvp=AM.mvp(proj,view,model);
-  gl.useProgram(prog);
-  gl.bindBuffer(gl.ARRAY_BUFFER,geo.vbo);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,geo.ibo);
-  const s=36;
-  const setA=(n,sz,o)=>{const l=gl.getAttribLocation(prog,n);if(l<0)return;gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,sz,gl.FLOAT,false,s,o*4);};
-  setA('aPos',3,0);setA('aCol',3,3);setA('aNorm',3,6);
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uMVP'),false,mvp);
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uM'),false,model);
-  gl.uniform1f(gl.getUniformLocation(prog,'uAlpha'),alpha);
-  gl.drawElements(gl.TRIANGLES,geo.count,gl.UNSIGNED_SHORT,0);
-}
-
-function arDrawLines(proj,view,model,geo,r,g,b,a){
-  const gl=arGL,mvp=AM.mvp(proj,view,model);
-  gl.useProgram(arProgLine);
-  gl.bindBuffer(gl.ARRAY_BUFFER,geo.vbo);
-  const l=gl.getAttribLocation(arProgLine,'aPos');
-  gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);
-  gl.uniformMatrix4fv(gl.getUniformLocation(arProgLine,'uMVP'),false,mvp);
-  gl.uniform4fv(gl.getUniformLocation(arProgLine,'uCol'),[r,g,b,a]);
-  gl.drawArrays(gl.LINES,0,geo.count);
-}
-
-// ─── Loop AR ───
-function arLoop(t,frame){
-  arSes.requestAnimationFrame(arLoop);
-  if(!arGeo.cube)return;
-  arFrameN++;
-  const gl=arGL;
-  const layer=arSes.renderState.baseLayer;
-  gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
-  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  gl.enable(gl.DEPTH_TEST);
-  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-
-  const pose=frame.getViewerPose(arRef);if(!pose)return;
-
-  // Hit-test
-  if(arHitSrc){
-    const hits=frame.getHitTestResults(arHitSrc);
-    arHitOK=hits.length>0;
-    if(arHitOK){
-      const hp=hits[0].getPose(arRef);if(hp){arHitX=hp.transform.matrix[12];arHitY=hp.transform.matrix[13];arHitZ=hp.transform.matrix[14];}
-    }
-  }
-
-  // Visée cube AR
-  const camMat=pose.transform.matrix;
-  const camPos=[camMat[12],camMat[13],camMat[14]];
-  const camFwd=[-camMat[8],-camMat[9],-camMat[10]];
-
-  for(const view of pose.views){
-    const vp=layer.getViewport(view);
-    gl.viewport(vp.x,vp.y,vp.width,vp.height);
-    const proj=view.projectionMatrix;
-    const viewM=view.transform.inverse.matrix;
-
-    // Réticule + grille
-    if(arHitOK&&!arAnchored){
-      arDrawLines(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.grid,0.2,0.85,0.4,0.45);
-      arDrawLines(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.ret,1,1,0.3,0.9);
-    }
-
-    if(!arAnchored)continue;
-
-    // ─── Scène complète depuis l'ancre ───
-    const ax=arAnchorX,ay=arAnchorY,az=arAnchorZ;
-    const ryM=AM.RY(arRotY);
-
-    // Calculer bbox de la pièce pour centrer
-    let mnx=0,mxx=3,mny=0,mxy=2.4;
-    if(SC.walls.length)for(const w of SC.walls)for(const p of w.pts){
-      mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);
-    }
-    const rcx=(mnx+mxx)/2,rcz=(mny+mxy)/2;
-    // Offset pour centrer la scène sur l'ancre
-    const baseM=AM.mul(AM.T(ax,ay,az),ryM);
-
-    function sceneM(wx,wy,wz){
-      // wx,wy,wz = coord plan (mètres), wz = profondeur plan
-      // On mappe: plan.x→monde.X, plan.y→monde.Z (profondeur), hauteur→monde.Y
-      const localT=AM.T(wx-rcx,wy,-(wz-rcz));
-      return AM.mul(baseM,localT);
-    }
-
-    // ─── Murs ───
-    if(arLayers.walls&&SC.walls.length){
-      const RH=SC.roomH;
-      const rW=mxx-mnx,rD=mxy-mny;
-      // Sol
-      const solM=AM.mul(baseM,AM.mul(AM.T(0,0,0),AM.S(rW,0.005,rD)));
-      const solMvp=AM.mvp(proj,viewM,AM.mul(baseM,AM.T(0,0,0)));
-      // Sol comme plan plat
-      const floorM=AM.mul(AM.mul(baseM,AM.T(0,0.001,0)),AM.S(rW,0.003,rD));
-      arDrawMesh(proj,viewM,floorM,arGeo.cube,0.4);
-
-      // Murs (4 faces semi-transparentes)
-      const walls4=[
-        [0,RH/2,rD/2,  rW,RH,0.04],  // nord
-        [0,RH/2,-rD/2, rW,RH,0.04],  // sud
-        [-rW/2,RH/2,0, 0.04,RH,rD],  // ouest
-        [rW/2,RH/2,0,  0.04,RH,rD],  // est
-      ];
-      for(const[x,y,z,sw,sh,sd] of walls4){
-        const wm=AM.mul(AM.mul(baseM,AM.T(x,y,-z)),AM.S(sw,sh,sd));
-        arDrawMesh(proj,viewM,wm,arGeo.cube,0.18);
-      }
-    }
-
-    // ─── Zones NF C 15-100 ───
-    if(arLayers.zones){
-      const ZH=2.25;
-      for(const s of SC.sanitaires){
-        const c=CAT_SAN[s.type];if(!c?.water||!c.zR)continue;
-        const{z1:r1,z2:r2}=c.zR;
-        const sx=s.x-rcx,sz=-(s.y-rcz);
-        // Z2
-        const z2m=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r2,ZH,c.d+2*r2));
-        arDrawMesh(proj,viewM,z2m,arGeo.cube,0.06);
-        const z2wm=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r2+.01,ZH,c.d+2*r2+.01));
-        arDrawLines(proj,viewM,z2wm,arGeo.ret,0.24,0.6,1,0.3);
-        // Z1
-        const z1m=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r1,ZH,c.d+2*r1));
-        arDrawMesh(proj,viewM,z1m,arGeo.cube,0.08);
-        const z1wm=AM.mul(AM.mul(baseM,AM.T(sx,ZH/2,sz)),AM.S(c.w+2*r1+.01,ZH,c.d+2*r1+.01));
-        arDrawLines(proj,viewM,z1wm,arGeo.ret,1,0.65,0.1,0.35);
-        // Z0 (empreinte sanitaire)
-        const z0m=AM.mul(AM.mul(baseM,AM.T(sx,(c.h3||.5)/2,sz)),AM.S(c.w,c.h3||.5,c.d));
-        arDrawMesh(proj,viewM,z0m,arGeo.cube,0.12);
-        // Plan H=2.25m
-        const hm=AM.mul(AM.mul(baseM,AM.T(sx,ZH,sz)),AM.S(c.w+2*r1,0.005,c.d+2*r1));
-        arDrawMesh(proj,viewM,hm,arGeo.cube,0.15);
-        // Sanitaire 3D
-        const sanM=AM.mul(AM.mul(baseM,AM.T(sx,(c.h3||.5)/2,sz)),AM.S(c.w,c.h3||.5,c.d));
-        arDrawMesh(proj,viewM,sanM,arGeo.cube,0.88);
-      }
-    }
-
-    // ─── Éléments électriques ───
-    if(arLayers.elec){
-      for(const el of SC.electrique){
-        const c=CAT_EL[el.type];if(!c)continue;
-        const{errs}=checkEl(el);
-        const ex=el.x-rcx,ez=-(el.y-rcz);
-        const elM=AM.mul(AM.mul(baseM,AM.T(ex,el.h,ez)),AM.S(0.08,0.04,0.08));
-        arDrawMesh(proj,viewM,elM,arGeo.cube,0.9);
-        // Ligne verticale
-        const lineM=AM.mul(AM.mul(baseM,AM.T(ex,el.h/2,ez)),AM.S(0.01,el.h,0.01));
-        arDrawMesh(proj,viewM,lineM,arGeo.cube,0.35);
-        // Halo erreur
-        if(errs.length){
-          const halo=AM.mul(AM.mul(baseM,AM.T(ex,el.h,ez)),AM.S(0.15,0.005,0.15));
-          arDrawMesh(proj,viewM,halo,arGeo.cube,0.6);
-        }
-      }
-    }
-  }
-
-  // HUD updates
-  if(arFrameN%30===0){
-    const ring=document.getElementById('xring');
-    if(arAnchored){ring.className='';ring.style.borderColor='#60a5fa';}
-    else if(arHitOK){ring.className='hit';}
-    else{ring.className='';}
-    if(!arAnchored&&arHitOK)arSetSt(`Surface (${arHitX.toFixed(2)}, ${arHitY.toFixed(2)}, ${arHitZ.toFixed(2)})`,'ok');
-    document.getElementById('arInfoTxt').textContent=
-      `${SC.sanitaires.length} san. · ${SC.electrique.length} él.`;
-    if(arAnchored)updateVolBox();
-  }
-}
-
-function updateVolBox(){
-  const v=calcVols();
-  document.getElementById('arVol').innerHTML=`
-    <div class="vt">Volumes NF C 15-100</div>
-    <div class="vr"><span class="vk">Pièce</span><span class="vv">${v.roomVol.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Zone 0</span><span class="vv" style="color:#ef4444">${v.z0.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Zone 1</span><span class="vv" style="color:#f59e0b">${v.z1.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Zone 2</span><span class="vv" style="color:#93c5fd">${v.z2.toFixed(2)} m³</span></div>
-    <div class="vr"><span class="vk">Hors zone</span><span class="vv" style="color:#22c55e">${v.hors.toFixed(2)} m³</span></div>`;
-}
-
-function arSetSt(t,type){
-  document.getElementById('arSt').textContent=t;
-  document.getElementById('arDot').className='sdt '+(type||'scan');
-}
-
 // ══════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
-  // Pré-remplir pièce demo
   SC.walls=[{pts:[{x:.2,y:.2},{x:3.2,y:.2},{x:3.2,y:2.6},{x:.2,y:2.6}],closed:true}];
 });
 window.addEventListener('resize',()=>{
