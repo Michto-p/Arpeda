@@ -924,19 +924,8 @@ function initEl(){
 
 function setElTool(t){elTool=t;}
 
-function distToEdge(px,py){
-  let m=Infinity;
-  for(const s of SC.sanitaires){
-    const c=CAT_SAN[s.type];if(!c?.water)continue;
-    const cx=Math.max(s.x-c.w/2,Math.min(s.x+c.w/2,px));
-    const cy=Math.max(s.y-c.d/2,Math.min(s.y+c.d/2,py));
-    m=Math.min(m,Math.hypot(px-cx,py-cy)*100);
-  }return m;
-}
-function insideSan(px,py){
-  for(const s of SC.sanitaires){const c=CAT_SAN[s.type];if(!c?.water)continue;
-    if(px>=s.x-c.w/2&&px<=s.x+c.w/2&&py>=s.y-c.d/2&&py<=s.y+c.d/2)return true;}return false;
-}
+function distToEdge(px,py){ return distToEdgePt(px,py); }
+function insideSan(px,py){ return insideSanPt(px,py); }
 function getZone(px,py,h=1){
   if(insideSan(px,py))return 0;
   const d=distToEdge(px,py);
@@ -1080,17 +1069,114 @@ function redrawEl(){
 // ══════════════════════════════════════════════
 //  ÉTAPE 4 — NORMES
 // ══════════════════════════════════════════════
-function calcVols(){
-  const H=SC.roomH,ZH=2.25;
-  let rA=0;if(SC.walls.length)for(const w of SC.walls)rA+=Math.abs(polyArea(w.pts));else rA=3*2.4;
-  let z0=0,z1=0,z2=0;
-  for(const s of SC.sanitaires){const c=CAT_SAN[s.type];if(!c?.water||!c.zR)continue;
-    const{z1:r1,z2:r2}=c.zR;z0+=c.w*c.d*(c.h3||.5);
-    z1+=((c.w+2*r1)*(c.d+2*r1)-c.w*c.d)*ZH;z2+=((c.w+2*r2)*(c.d+2*r2)-(c.w+2*r1)*(c.d+2*r1))*ZH;
-  }
-  return{roomVol:rA*H,z0,z1,z2,hors:Math.max(0,rA*H-z0-z1-z2)};
+// ══════════════════════════════════════════════
+//  VOLUMES — clippés par les murs de la pièce
+//  Zone = intersection(zone_théorique, pièce)
+//  Calcul par échantillonnage sur grille fine
+// ══════════════════════════════════════════════
+function polyArea(pts){
+  let a=0;
+  for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;a+=pts[i].x*pts[j].y-pts[j].x*pts[i].y;}
+  return a/2;
 }
-function polyArea(pts){let a=0;for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;a+=pts[i].x*pts[j].y-pts[j].x*pts[i].y;}return a/2;}
+
+// Test point dans polygone (ray casting)
+function ptInPoly(px,py,pts){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+    if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+
+// Distance point → bord le plus proche d'un sanitaire (en cm)
+function distToEdgePt(px,py){
+  let m=Infinity;
+  for(const s of SC.sanitaires){
+    const c=CAT_SAN[s.type];if(!c?.water)continue;
+    const cx=Math.max(s.x-c.w/2,Math.min(s.x+c.w/2,px));
+    const cy=Math.max(s.y-c.d/2,Math.min(s.y+c.d/2,py));
+    m=Math.min(m,Math.hypot(px-cx,py-cy)*100);
+  }
+  return m;
+}
+
+function insideSanPt(px,py){
+  for(const s of SC.sanitaires){
+    const c=CAT_SAN[s.type];if(!c?.water)continue;
+    if(px>=s.x-c.w/2&&px<=s.x+c.w/2&&py>=s.y-c.d/2&&py<=s.y+c.d/2)return true;
+  }
+  return false;
+}
+
+function calcVols(){
+  const H=SC.roomH||2.5, ZH=2.25;
+
+  // Bounding box de la pièce
+  let mnx=0,mxx=3,mny=0,mxy=2.4;
+  if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
+    mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);
+    mny=Math.min(mny,p.y);mxy=Math.max(mxy,p.y);
+  }
+
+  // Polygone de la pièce (premier mur fermé)
+  const roomPoly = SC.walls.length ? SC.walls[0].pts : [
+    {x:0,y:0},{x:3,y:0},{x:3,y:2.4},{x:0,y:2.4}
+  ];
+
+  // Surface réelle de la pièce
+  const roomArea = Math.abs(polyArea(roomPoly));
+  const roomVol  = roomArea * H;
+
+  // Pas d'échantillonnage : 5cm
+  const STEP = 0.05;
+  const cellArea = STEP * STEP;
+
+  let z0pts=0, z1pts=0, z2pts=0, roomPts=0;
+
+  for(let x=mnx+STEP/2; x<mxx; x+=STEP){
+    for(let y=mny+STEP/2; y<mxy; y+=STEP){
+      // Point dans la pièce ?
+      if(!ptInPoly(x,y,roomPoly)) continue;
+      roomPts++;
+
+      const inSan = insideSanPt(x,y);
+      const d     = distToEdgePt(x,y);
+
+      if(inSan)            z0pts++;
+      else if(d<=60)       z1pts++;
+      else if(d<=120)      z2pts++;
+    }
+  }
+
+  // Volumes = surface_échantillonnée × hauteur respective
+  // Z0 : hauteur = rim du sanitaire (pas toute la hauteur pièce)
+  // Z1, Z2 : hauteur = min(H, ZH=2.25m)
+  const z0Area = z0pts * cellArea;
+  const z1Area = z1pts * cellArea;
+  const z2Area = z2pts * cellArea;
+
+  // Pour Z0, calculer hauteur moyenne des sanitaires
+  let z0H = 0.5;
+  if(SC.sanitaires.filter(s=>CAT_SAN[s.type]?.water).length>0){
+    z0H = SC.sanitaires.filter(s=>CAT_SAN[s.type]?.water)
+      .reduce((acc,s)=>acc+(CAT_SAN[s.type].h3||0.5),0) /
+      SC.sanitaires.filter(s=>CAT_SAN[s.type]?.water).length;
+  }
+
+  const z0v = z0Area * z0H;
+  const z1v = z1Area * Math.min(H, ZH);
+  const z2v = z2Area * Math.min(H, ZH);
+  // Hors zone = volume pièce - zones (en tenant compte des hauteurs différentes)
+  const zoneVol = z0v + z1v + z2v;
+  const horsVol = Math.max(0, roomVol - zoneVol);
+
+  return{
+    roomVol, z0:z0v, z1:z1v, z2:z2v, hors:horsVol,
+    roomArea, z0Area, z1Area, z2Area
+  };
+}
 
 function renderNorms(){
   const els=SC.electrique;
@@ -1164,31 +1250,58 @@ function toggleARLyr(k){
 }
 
 async function startAR(){
-  if(!navigator.xr){alert('WebXR non disponible');return;}
+  if(!navigator.xr){alert('WebXR non disponible.\nChrome Android + ARCore requis.');return;}
+
+  // Vérifier support avant d'afficher l'écran AR
+  const supported = await navigator.xr.isSessionSupported('immersive-ar').catch(()=>false);
+  if(!supported){alert('AR non supportée sur cet appareil.\nVérifiez ARCore dans le Play Store.');return;}
+
+  // Afficher écran AR EN PREMIER pour que domOverlay fonctionne
+  document.getElementById('home').style.display='none';
+  document.getElementById('wizard').style.display='none';
+  document.getElementById('scrAR').style.display='block';
+  arSetSt('Ouverture caméra…','scan');
+
+  // Dimensionner le canvas AVANT la session
+  const cv = document.getElementById('arCanvas');
+  cv.width  = window.innerWidth;
+  cv.height = window.innerHeight;
+
   try{
     arSes=await navigator.xr.requestSession('immersive-ar',{
       requiredFeatures:['hit-test'],
       optionalFeatures:['dom-overlay','local-floor'],
-      domOverlay:{root:document.body}
+      domOverlay:{root:document.getElementById('scrAR')}
     });
-  }catch(e){alert('Erreur AR:\n'+e.message);return;}
+  }catch(e){
+    // Echec → retour wizard
+    document.getElementById('scrAR').style.display='none';
+    document.getElementById('wizard').style.display='flex';
+    alert('Erreur AR:\n'+e.message);
+    return;
+  }
 
-  document.getElementById('home').style.display='none';
-  document.getElementById('wizard').style.display='none';
-  document.getElementById('scrAR').style.display='block';
   arSetSt('Calibration…','scan');
 
   arSes.addEventListener('end',()=>{
     document.getElementById('scrAR').style.display='none';
     document.getElementById('wizard').style.display='flex';
-    arAnchored=false;arBuilt=false;
+    arAnchored=false; arBuilt=false; arSes=null;
   });
   arSes.addEventListener('select',arOnTap);
 
-  const cv=document.getElementById('arCanvas');
-  arGL=cv.getContext('webgl',{xrCompatible:true,alpha:true});
+  // WebGL — le canvas doit être xrCompatible
+  arGL = cv.getContext('webgl',{xrCompatible:true, alpha:true, antialias:true});
   await arGL.makeXRCompatible();
-  arSes.updateRenderState({baseLayer:new XRWebGLLayer(arSes,arGL)});
+
+  // XRWebGLLayer avec scaleFactor=1 pour éviter écran noir
+  const baseLayer = new XRWebGLLayer(arSes, arGL, {
+    alpha: true,
+    antialias: true,
+    depth: true,
+    framebufferScaleFactor: 1.0
+  });
+  arSes.updateRenderState({ baseLayer });
 
   try{arRef=await arSes.requestReferenceSpace('local-floor');}
   catch{arRef=await arSes.requestReferenceSpace('local');}
