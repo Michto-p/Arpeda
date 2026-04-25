@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>AR Debug v5.0</title>
+<title>AR Cubes v6.0</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0f172a;color:#fff;font-family:sans-serif;overflow:hidden;height:100vh}
@@ -11,56 +11,92 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;overflow:hidden;height
   height:100vh;gap:20px;padding:32px;text-align:center}
 h1{font-size:2rem;color:#60a5fa;font-weight:800}
 p{color:rgba(255,255,255,.6);font-size:.85rem;line-height:1.8;max-width:280px}
-button{padding:16px 40px;border-radius:30px;border:none;background:#2563eb;
+#startBtn{padding:16px 40px;border-radius:30px;border:none;background:#2563eb;
   color:#fff;font-size:1rem;font-weight:700;cursor:pointer}
-button:active{transform:scale(.96)}
+#startBtn:active{transform:scale(.96)}
+
 #hud{position:fixed;inset:0;z-index:99;pointer-events:none;display:none}
 #topbar{position:absolute;top:0;left:0;right:0;padding:10px 14px;
-  background:rgba(0,0,0,.75);font-size:.72rem;line-height:1.9;
-  font-family:monospace}
-#log{color:#34d399}
+  background:rgba(0,0,0,.72);font-size:.7rem;font-family:monospace;line-height:2}
+#status{color:#fbbf24}
+#info{color:#94a3b8}
+
+/* Réticule central fixe */
+#xhair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:44px;height:44px;pointer-events:none}
+#xhair::before,#xhair::after{content:'';position:absolute;background:rgba(255,255,255,.75);border-radius:1px}
+#xhair::before{width:1.5px;height:22px;left:21px;top:11px}
+#xhair::after{width:22px;height:1.5px;left:11px;top:21px}
+.xring{position:absolute;inset:0;border:1.5px solid rgba(255,255,255,.4);border-radius:50%}
+.xring.hit{border-color:#34d399}
+.xring.grab{border-color:#a78bfa}
+
 #actions{position:absolute;bottom:24px;left:0;right:0;
-  display:flex;justify-content:center;gap:10px;pointer-events:all}
-.btn{padding:12px 24px;border-radius:24px;border:none;color:#fff;
-  font-size:.85rem;font-weight:700;cursor:pointer}
+  display:flex;justify-content:center;gap:8px;pointer-events:all}
+.btn{padding:11px 20px;border-radius:22px;border:none;color:#fff;
+  font-size:.82rem;font-weight:700;cursor:pointer;
+  box-shadow:0 2px 10px rgba(0,0,0,.4)}
 .btn:active{transform:scale(.95)}
+#btnAdd   {background:#2563eb}
+#btnGrab  {background:#7c3aed;display:none}
+#btnDrop  {background:#059669;display:none}
+#btnDel   {background:#dc2626;display:none}
+#btnClear {background:rgba(80,80,100,.8);border:1px solid rgba(255,255,255,.2);display:none}
 </style>
 </head>
 <body>
 
 <div id="home">
-  <h1>AR Debug · v5.0</h1>
-  <p>Affiche les surfaces détectées en temps réel avant de placer le cube.</p>
-  <button onclick="startAR()">📷 Démarrer</button>
+  <h1>AR Cubes · v6.0</h1>
+  <p>Pose plusieurs cubes.<br>Pointe vers un cube pour le sélectionner.<br>Attrape-le et déplace-le.</p>
+  <button id="startBtn" onclick="startAR()">📷 Lancer la RA</button>
 </div>
 
 <div id="hud">
   <div id="topbar">
-    <div><b>AR Debug v5.0</b> — <span id="status" style="color:#fbbf24">…</span></div>
-    <div id="log"></div>
+    <div><b>AR Cubes v6.0</b> — <span id="status">…</span></div>
+    <div id="info">cubes: 0 | sélectionné: aucun</div>
   </div>
+  <div id="xhair"><div class="xring" id="ring"></div></div>
   <div id="actions">
-    <button class="btn" style="background:#2563eb" onclick="placeObj()">📍 Placer cube</button>
-    <button class="btn" style="background:rgba(80,80,120,.8);border:1px solid rgba(255,255,255,.2)"
-            onclick="resetObj()">↺ Reset</button>
+    <button class="btn" id="btnAdd"   onclick="addCube()">＋ Ajouter cube</button>
+    <button class="btn" id="btnGrab"  onclick="grabCube()">✋ Attraper</button>
+    <button class="btn" id="btnDrop"  onclick="dropCube()">📌 Déposer</button>
+    <button class="btn" id="btnDel"   onclick="delCube()">🗑</button>
+    <button class="btn" id="btnClear" onclick="clearAll()">✕ Tout effacer</button>
   </div>
 </div>
 
 <script>
 'use strict';
 
+// ═══════════════════════════════════════════
+//  ÉTAT
+// ═══════════════════════════════════════════
 let ses, ref, hitSrc;
-let gl, prog, progLine;
-let placed = false;
-let hitX=0, hitY=0, hitZ=0, hitFound=false;
-let cubeX=0, cubeY=0, cubeZ=0;
-let rotY = 0;
-let frameCount = 0;
-let hitCount = 0;
+let gl, progCube, progLine;
+let glCube, glReticle, glGrid;
 
-// Buffers
-let cubeBufs, rBuf, lineBuf;
+// Liste des cubes posés
+// { id, x, y, z, ry }
+let cubes = [];
+let nextId = 0;
 
+// Cube actuellement sélectionné (index dans cubes[])
+let selIdx = -1;   // -1 = aucun
+let grabbed = false;
+
+// Hit-test courant
+let hitX=0, hitY=0, hitZ=0, hitOK=false;
+
+// Sélection par visée — quel cube est dans la ligne de mire
+let aimIdx = -1;   // index du cube visé (-1 = aucun)
+
+let frameN = 0;
+
+// ═══════════════════════════════════════════
+//  DÉMARRAGE
+// ═══════════════════════════════════════════
 async function startAR() {
   if (!navigator.xr) { alert('WebXR non disponible'); return; }
   try {
@@ -69,238 +105,405 @@ async function startAR() {
       optionalFeatures: ['dom-overlay','local-floor'],
       domOverlay: { root: document.body }
     });
-  } catch(e) { alert('Erreur: '+e.message); return; }
+  } catch(e) { alert('Erreur AR:\n'+e.message); return; }
 
   document.getElementById('home').style.display = 'none';
   document.getElementById('hud').style.display  = 'block';
+  setSt('Calibration…','#fbbf24');
 
-  ses.addEventListener('end', ()=>{
-    document.getElementById('home').style.display='flex';
-    document.getElementById('hud').style.display='none';
-  });
+  ses.addEventListener('end', onEnd);
+  // Tap = sélectionner ou confirmer
   ses.addEventListener('select', onTap);
 
-  // Canvas
   const cv = document.createElement('canvas');
-  cv.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none';
+  cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none';
   document.body.appendChild(cv);
-  gl = cv.getContext('webgl',{xrCompatible:true,alpha:true});
+  gl = cv.getContext('webgl', { xrCompatible:true, alpha:true });
   await gl.makeXRCompatible();
-  ses.updateRenderState({baseLayer:new XRWebGLLayer(ses,gl)});
+  ses.updateRenderState({ baseLayer: new XRWebGLLayer(ses, gl) });
 
-  try { ref = await ses.requestReferenceSpace('local-floor'); log('refSpace: local-floor','#34d399'); }
-  catch { ref = await ses.requestReferenceSpace('local'); log('refSpace: local','#fbbf24'); }
+  try       { ref = await ses.requestReferenceSpace('local-floor'); }
+  catch (e) { ref = await ses.requestReferenceSpace('local'); }
 
-  await startHit();
+  await launchHit();
   buildGL();
   ses.requestAnimationFrame(loop);
-  setSt('Pointez vers le sol…','#fbbf24');
 }
 
-async function startHit() {
+function onEnd() {
+  document.getElementById('home').style.display = 'flex';
+  document.getElementById('hud').style.display  = 'none';
+  cubes=[]; selIdx=-1; grabbed=false;
+}
+
+// ─── Hit-test ───
+async function launchHit() {
   const vs = await ses.requestReferenceSpace('viewer');
-  hitSrc = await ses.requestHitTestSource({space:vs});
-  log('hitTestSource OK','#34d399');
+  hitSrc = await ses.requestHitTestSource({ space: vs });
+}
+function stopHit() {
+  if (hitSrc) { try{hitSrc.cancel();}catch{} hitSrc=null; }
 }
 
-function onTap() { if (!placed) placeObj(); else resetObj(); }
-
-function placeObj() {
-  if (!hitFound) { setSt('Pas de surface !','#f87171'); return; }
-  cubeX=hitX; cubeY=hitY; cubeZ=hitZ;
-  placed=true;
-  try{hitSrc.cancel();}catch{}hitSrc=null;
-  setSt('Cube posé ✓','#34d399');
-  log(`Cube @ ${cubeX.toFixed(2)},${cubeY.toFixed(2)},${cubeZ.toFixed(2)}`,'#60a5fa');
+// ═══════════════════════════════════════════
+//  ACTIONS
+// ═══════════════════════════════════════════
+function onTap() {
+  if (grabbed) {
+    dropCube();
+  } else if (aimIdx >= 0) {
+    // Sélectionner le cube visé
+    selIdx = aimIdx;
+    updateUI();
+  } else {
+    addCube();
+  }
 }
 
-function resetObj() {
-  placed=false; hitFound=false;
-  startHit();
-  setSt('Pointez le sol…','#fbbf24');
+function addCube() {
+  if (!hitOK) { setSt('Pointez une surface','#fbbf24'); return; }
+  cubes.push({ id: nextId++, x:hitX, y:hitY, z:hitZ, ry:0 });
+  selIdx = cubes.length - 1;
+  setSt(`Cube #${cubes[selIdx].id} posé`,'#34d399');
+  updateUI();
 }
 
-// ── GL ──
+function grabCube() {
+  if (selIdx < 0) return;
+  grabbed = true;
+  // Garder le hit-test actif pour déplacer
+  if (!hitSrc) launchHit();
+  setSt(`Cube #${cubes[selIdx].id} saisi — bougez le téléphone`,'#a78bfa');
+  updateUI();
+}
+
+function dropCube() {
+  if (!grabbed || selIdx < 0) return;
+  if (hitOK) {
+    cubes[selIdx].x = hitX;
+    cubes[selIdx].y = hitY;
+    cubes[selIdx].z = hitZ;
+  }
+  grabbed = false;
+  stopHit();
+  // Relancer pour continuer à viser
+  launchHit();
+  setSt(`Cube #${cubes[selIdx].id} déposé`,'#34d399');
+  updateUI();
+}
+
+function delCube() {
+  if (selIdx < 0) return;
+  cubes.splice(selIdx, 1);
+  selIdx = -1;
+  setSt('Cube supprimé','#f87171');
+  updateUI();
+}
+
+function clearAll() {
+  cubes=[]; selIdx=-1; grabbed=false;
+  setSt('Tout effacé','#94a3b8');
+  updateUI();
+}
+
+function updateUI() {
+  const hasSel = selIdx >= 0 && selIdx < cubes.length;
+  show('btnAdd');
+  tog('btnGrab',  hasSel && !grabbed);
+  tog('btnDrop',  grabbed);
+  tog('btnDel',   hasSel && !grabbed);
+  tog('btnClear', cubes.length > 0 && !grabbed);
+  const selName = hasSel ? `#${cubes[selIdx].id}` : 'aucun';
+  document.getElementById('info').textContent =
+    `cubes: ${cubes.length} | sélectionné: ${selName}${grabbed?' (saisi)':''}`;
+}
+
+// ═══════════════════════════════════════════
+//  MATRICES — column-major correct
+// ═══════════════════════════════════════════
+const M = {
+  id() { return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); },
+
+  // Multiplication column-major (WebGL standard)
+  mul(a, b) {
+    const o = new Float32Array(16);
+    for (let col=0; col<4; col++)
+      for (let row=0; row<4; row++)
+        for (let k=0; k<4; k++)
+          o[col*4+row] += a[k*4+row] * b[col*4+k];
+    return o;
+  },
+
+  translate(x, y, z) {
+    const m = M.id();
+    // Colonne 3 = translation en column-major
+    m[12]=x; m[13]=y; m[14]=z;
+    return m;
+  },
+
+  rotY(a) {
+    const c=Math.cos(a), s=Math.sin(a);
+    const m = M.id();
+    // Column-major rotY:
+    // col0: [c, 0,-s, 0]
+    // col2: [s, 0, c, 0]
+    m[0]=c;  m[8]=s;
+    m[2]=-s; m[10]=c;
+    return m;
+  },
+
+  scale(x, y, z) {
+    const m = M.id();
+    m[0]=x; m[5]=y; m[10]=z;
+    return m;
+  },
+
+  // MVP = proj × view × model
+  mvp(proj, view, model) {
+    return M.mul(M.mul(proj, view), model);
+  }
+};
+
+// ═══════════════════════════════════════════
+//  SÉLECTION PAR VISÉE
+//  Calcule quel cube est le plus proche du
+//  centre de l'écran (rayon depuis la caméra)
+// ═══════════════════════════════════════════
+function updateAim(camPos, camFwd) {
+  // Pour chaque cube, calcule la distance angulaire
+  // entre la direction caméra et le vecteur caméra→cube
+  let best = -1, bestDot = 0.94; // cos(~20°) = seuil de sélection
+
+  for (let i=0; i<cubes.length; i++) {
+    const c = cubes[i];
+    // Vecteur caméra → cube (normalisé)
+    const dx = c.x - camPos[0];
+    const dy = (c.y+0.10) - camPos[1]; // centre du cube
+    const dz = c.z - camPos[2];
+    const len = Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if (len < 0.01) continue;
+    const dot = (dx*camFwd[0] + dy*camFwd[1] + dz*camFwd[2]) / len;
+    if (dot > bestDot) { bestDot=dot; best=i; }
+  }
+  return best;
+}
+
+// ═══════════════════════════════════════════
+//  WEBGL
+// ═══════════════════════════════════════════
 function buildGL() {
-  // Programme principal (cube coloré)
-  prog = makeProgram(`
+  // Prog cube : pos + couleur par face
+  progCube = mkProg(`
     attribute vec3 aPos;
     attribute vec3 aCol;
-    uniform mat4 uMat;
+    attribute vec3 aNorm;
+    uniform mat4 uMVP;
+    uniform mat4 uM;
     varying vec3 vCol;
-    void main(){ gl_Position=uMat*vec4(aPos,1.0); vCol=aCol; }
+    varying vec3 vNorm;
+    void main(){
+      gl_Position = uMVP * vec4(aPos,1.0);
+      vNorm = normalize(vec3(uM * vec4(aNorm,0.0)));
+      vCol  = aCol;
+    }
   `,`
     precision mediump float;
     varying vec3 vCol;
-    void main(){ gl_FragColor=vec4(vCol,1.0); }
+    varying vec3 vNorm;
+    uniform float uSel; // 0=normal 1=selected 2=aimed
+    void main(){
+      // Éclairage directionnel simple
+      vec3 L = normalize(vec3(0.8,1.5,0.6));
+      float d = max(dot(vNorm,L),0.0)*0.65 + 0.35;
+      vec3 col = vCol * d;
+      // Surbrillance sélection
+      if (uSel > 1.5) col = mix(col, vec3(0.8,0.5,1.0), 0.5); // violet = visé
+      if (uSel > 0.5 && uSel < 1.5) col = mix(col, vec3(1.0,0.85,0.2), 0.4); // jaune = sélectionné
+      gl_FragColor = vec4(col,1.0);
+    }
   `);
 
-  // Programme lignes (couleur uniforme)
-  progLine = makeProgram(`
+  // Prog lignes : couleur uniforme
+  progLine = mkProg(`
     attribute vec3 aPos;
-    uniform mat4 uMat;
-    void main(){ gl_Position=uMat*vec4(aPos,1.0); }
+    uniform mat4 uMVP;
+    void main(){ gl_Position = uMVP * vec4(aPos,1.0); }
   `,`
     precision mediump float;
     uniform vec4 uCol;
-    void main(){ gl_FragColor=uCol; }
+    void main(){ gl_FragColor = uCol; }
   `);
 
-  // Cube 20cm
-  const s=0.10;
-  const cv=[], ci=[];
-  const faces=[
-    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],c:[.3,.6,1]},
-    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],c:[.15,.4,.9]},
-    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],c:[.2,.7,.9]},
-    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],c:[.2,.5,.9]},
-    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],c:[.8,.9,1]},
-    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],c:[.1,.3,.6]},
+  // Géométrie cube 20cm
+  const s = 0.10;
+  const faces = [
+    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],     n:[0,0,1],  c:[.30,.60,1.0]}, // front
+    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],  n:[0,0,-1], c:[.15,.42,.90]}, // back
+    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],       n:[1,0,0],  c:[.20,.72,.92]}, // right
+    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],  n:[-1,0,0], c:[.18,.52,.92]}, // left
+    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],       n:[0,1,0],  c:[.82,.92,1.0]}, // top
+    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],   n:[0,-1,0], c:[.10,.30,.60]}, // bottom
   ];
-  faces.forEach(({v,c},fi)=>{
+  const cv=[], ci=[];
+  faces.forEach(({v,n,c},fi)=>{
     const b=fi*4;
-    v.forEach(p=>cv.push(...p,...c));
-    ci.push(b,b+1,b+2,b,b+2,b+3);
+    v.forEach(p=>cv.push(...p,...c,...n));
+    ci.push(b,b+1,b+2, b,b+2,b+3);
   });
-  cubeBufs = makeBuf(new Float32Array(cv), new Uint16Array(ci), ci.length);
+  glCube = mkMesh(new Float32Array(cv), new Uint16Array(ci));
 
-  // Croix de réticule — 2 lignes perpendiculaires sur le plan XZ
-  const r=0.06;
-  rBuf = makeLineBuf(new Float32Array([
-    -r,0,0, r,0,0,   // axe X
-     0,0,-r, 0,0,r,  // axe Z
-    // Carré
-    -r,0,-r, r,0,-r,
-     r,0,-r, r,0, r,
-     r,0, r,-r,0, r,
-    -r,0, r,-r,0,-r,
-  ]));
-
-  // Grille de lignes pour visualiser le sol (10×10)
-  const gv=[];
-  const gs=0.5, gn=4;
-  for(let i=-gn;i<=gn;i++){
-    gv.push(i*gs,0,-gn*gs, i*gs,0,gn*gs);
-    gv.push(-gn*gs,0,i*gs, gn*gs,0,i*gs);
+  // Réticule : croix + cercle
+  const rv=[];
+  const R=0.055;
+  // Croix
+  rv.push(-R,0,0, R,0,0, 0,0,-R, 0,0,R);
+  // Cercle (32 segments)
+  for(let i=0;i<32;i++){
+    const a0=i/32*Math.PI*2, a1=(i+1)/32*Math.PI*2;
+    rv.push(Math.cos(a0)*R,0,Math.sin(a0)*R, Math.cos(a1)*R,0,Math.sin(a1)*R);
   }
-  lineBuf = makeLineBuf(new Float32Array(gv));
+  glReticle = mkLines(new Float32Array(rv));
+
+  // Grille sol 1×1m (lignes tous les 10cm)
+  const gv=[];
+  for(let i=-5;i<=5;i++){
+    gv.push(i*.1,0,-.5, i*.1,0,.5);
+    gv.push(-.5,0,i*.1, .5,0,i*.1);
+  }
+  glGrid = mkLines(new Float32Array(gv));
 }
 
-function makeProgram(vsrc,fsrc){
+function mkProg(vsrc,fsrc){
   const vs=gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vs,vsrc);gl.compileShader(vs);
+  gl.shaderSource(vs,vsrc); gl.compileShader(vs);
   const fs=gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fs,fsrc);gl.compileShader(fs);
+  gl.shaderSource(fs,fsrc); gl.compileShader(fs);
   const p=gl.createProgram();
-  gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
-  if(!gl.getProgramParameter(p,gl.LINK_STATUS))
-    log('Shader err: '+gl.getProgramInfoLog(p),'#f87171');
+  gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
   return p;
 }
 
-function makeBuf(verts,idx,count){
-  const vbo=gl.createBuffer(),ibo=gl.createBuffer();
+function mkMesh(verts, idx){
+  const vbo=gl.createBuffer(), ibo=gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
   gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
-  return{vbo,ibo,count};
+  return { vbo, ibo, count:idx.length };
 }
 
-function makeLineBuf(verts){
+function mkLines(verts){
   const vbo=gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
   gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
-  return{vbo,count:verts.length/3};
+  return { vbo, count:verts.length/3 };
 }
 
-// ── Rendu ──
-function drawLines(mat, buf, r,g,b,a){
+// ─── Draw cube ───
+function drawCube(proj, view, model, selMode) {
+  const mvp = M.mvp(proj, view, model);
+  gl.useProgram(progCube);
+  gl.bindBuffer(gl.ARRAY_BUFFER, glCube.vbo);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, glCube.ibo);
+  // stride = 9 floats × 4 bytes = 36
+  const s=36;
+  setAttr('aPos', 3, 0, s);
+  setAttr('aCol', 3, 3, s);
+  setAttr('aNorm',3, 6, s);
+  gl.uniformMatrix4fv(gl.getUniformLocation(progCube,'uMVP'), false, mvp);
+  gl.uniformMatrix4fv(gl.getUniformLocation(progCube,'uM'),   false, model);
+  gl.uniform1f(gl.getUniformLocation(progCube,'uSel'), selMode);
+  gl.drawElements(gl.TRIANGLES, glCube.count, gl.UNSIGNED_SHORT, 0);
+}
+
+// ─── Draw lines ───
+function drawLines(proj, view, model, buf, r,g,b,a) {
+  const mvp = M.mvp(proj, view, model);
   gl.useProgram(progLine);
-  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vbo);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf.vbo);
   const l=gl.getAttribLocation(progLine,'aPos');
   gl.enableVertexAttribArray(l);
   gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);
-  gl.uniformMatrix4fv(gl.getUniformLocation(progLine,'uMat'),false,mat);
-  gl.uniform4fv(gl.getUniformLocation(progLine,'uCol'),[r,g,b,a]);
-  gl.drawArrays(gl.LINES,0,buf.count);
+  gl.uniformMatrix4fv(gl.getUniformLocation(progLine,'uMVP'), false, mvp);
+  gl.uniform4fv(gl.getUniformLocation(progLine,'uCol'), [r,g,b,a]);
+  gl.drawArrays(gl.LINES, 0, buf.count);
 }
 
-function drawCube(mat,buf){
-  gl.useProgram(prog);
-  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vbo);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buf.ibo);
-  const pl=gl.getAttribLocation(prog,'aPos');
-  const cl=gl.getAttribLocation(prog,'aCol');
-  gl.enableVertexAttribArray(pl);
-  gl.enableVertexAttribArray(cl);
-  gl.vertexAttribPointer(pl,3,gl.FLOAT,false,24,0);
-  gl.vertexAttribPointer(cl,3,gl.FLOAT,false,24,12);
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'uMat'),false,mat);
-  gl.drawElements(gl.TRIANGLES,buf.count,gl.UNSIGNED_SHORT,0);
+function setAttr(name, size, offsetFloats, strideBytes){
+  const l=gl.getAttribLocation(progCube,name);
+  if(l<0) return;
+  gl.enableVertexAttribArray(l);
+  gl.vertexAttribPointer(l,size,gl.FLOAT,false,strideBytes,offsetFloats*4);
 }
 
-// ── Matrices avec gl-matrix ──
-// On charge gl-matrix INLINE pour éviter CDN
-// Implémentation minimale mat4
-const M = {
-  id(){ return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); },
-  mul(a,b){
-    const o=new Float32Array(16);
-    // gl-matrix column-major : o[col*4+row]
-    for(let c=0;c<4;c++) for(let r=0;r<4;r++) for(let k=0;k<4;k++)
-      o[c*4+r]+=a[k*4+r]*b[c*4+k];
-    return o;
-  },
-  translate(x,y,z){
-    const m=M.id();
-    m[12]=x; m[13]=y; m[14]=z;
-    return m;
-  },
-  rotY(a){
-    const c=Math.cos(a),s=Math.sin(a),m=M.id();
-    m[0]=c; m[8]=s; m[2]=-s; m[10]=c;
-    return m;
-  },
-  scale(x,y,z){
-    const m=M.id();
-    m[0]=x; m[5]=y; m[10]=z;
-    return m;
-  },
-  // Combine proj × view × model
-  mvp(proj,view,model){ return M.mul(M.mul(proj,view),model); }
-};
-
-// ── Boucle ──
+// ═══════════════════════════════════════════
+//  BOUCLE PRINCIPALE
+// ═══════════════════════════════════════════
 function loop(t, frame) {
   ses.requestAnimationFrame(loop);
-  if (!cubeBufs) return;
+  if (!glCube) return;
 
-  frameCount++;
+  frameN++;
   const layer = ses.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
 
   const pose = frame.getViewerPose(ref);
-  if (!pose) { if(frameCount%60===0) log('Pas de pose caméra','#f87171'); return; }
+  if (!pose) return;
 
-  // Hit-test
+  // ── Hit-test ──
   if (hitSrc) {
     const hits = frame.getHitTestResults(hitSrc);
-    hitFound = hits.length > 0;
-    if (hitFound) {
-      hitCount++;
+    hitOK = hits.length > 0;
+    if (hitOK) {
       const hp = hits[0].getPose(ref);
       if (hp) {
         hitX = hp.transform.matrix[12];
         hitY = hp.transform.matrix[13];
         hitZ = hp.transform.matrix[14];
       }
-      if (frameCount%30===0)
-        setSt(`Surface @ ${hitX.toFixed(2)}, ${hitY.toFixed(2)}, ${hitZ.toFixed(2)}`,'#34d399');
+      if (grabbed && selIdx >= 0) {
+        // Déplacer le cube saisi en temps réel
+        cubes[selIdx].x = hitX;
+        cubes[selIdx].y = hitY;
+        cubes[selIdx].z = hitZ;
+      }
+    }
+  }
+
+  // ── Position et direction caméra (pour la visée) ──
+  const camMat = pose.transform.matrix;
+  const camPos = [camMat[12], camMat[13], camMat[14]];
+  // Direction = -Z de la matrice caméra (colonne 2, négative)
+  const camFwd = [-camMat[8], -camMat[9], -camMat[10]];
+
+  // Calculer quel cube est visé
+  if (!grabbed) {
+    aimIdx = updateAim(camPos, camFwd);
+  }
+
+  // Mettre à jour le réticule visuel
+  const ring = document.getElementById('ring');
+  if (aimIdx >= 0) {
+    ring.className='xring grab'; // violet = cube visé
+  } else if (hitOK) {
+    ring.className='xring hit';  // vert = surface détectée
+  } else {
+    ring.className='xring';      // blanc = rien
+  }
+
+  // Status
+  if (frameN % 30 === 0) {
+    if (grabbed) {
+      setSt(`Déplacement cube #${cubes[selIdx].id}…`,'#a78bfa');
+    } else if (aimIdx >= 0) {
+      setSt(`Cube #${cubes[aimIdx].id} visé — tap pour sélectionner`,'#c4b5fd');
+    } else if (hitOK) {
+      setSt(`Surface (${hitX.toFixed(2)}, ${hitY.toFixed(2)}, ${hitZ.toFixed(2)})`,'#34d399');
     } else {
-      if (frameCount%30===0) setSt('Cherche surface…','#fbbf24');
+      setSt('Cherche surface…','#fbbf24');
     }
   }
 
@@ -308,56 +511,71 @@ function loop(t, frame) {
     const vp = layer.getViewport(view);
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
 
-    const proj = view.projectionMatrix;
+    const proj  = view.projectionMatrix;
     const viewM = view.transform.inverse.matrix;
 
-    // ── Grille de sol à la position hit ──
-    // Affichée en permanence pour confirmer la détection
-    if (hitFound && !placed) {
-      const gMat = M.mvp(proj, viewM, M.translate(hitX, hitY, hitZ));
-      drawLines(gMat, lineBuf, 0.2, 0.8, 0.4, 0.5); // vert semi-transparent
-
-      // Croix au centre du hit
-      const rMat = M.mvp(proj, viewM, M.translate(hitX, hitY, hitZ));
-      drawLines(rMat, rBuf, 1, 1, 0, 0.9); // jaune vif
+    // ── Grille sur la surface détectée ──
+    if (hitOK && !grabbed) {
+      drawLines(proj, viewM,
+        M.translate(hitX, hitY, hitZ),
+        glGrid, 0.2,0.85,0.4, 0.45);
     }
 
-    // ── Cube ──
-    if (placed) {
-      rotY += 0.008;
-      const model = M.mul(M.translate(cubeX, cubeY+0.10, cubeZ), M.rotY(rotY));
-      const mat   = M.mvp(proj, viewM, model);
-      drawCube(mat, cubeBufs);
+    // ── Réticule sol (pendant grab = position cible) ──
+    if (hitOK && grabbed) {
+      drawLines(proj, viewM,
+        M.translate(hitX, hitY, hitZ),
+        glReticle, 0.7,0.4,1.0, 0.9);
+    } else if (hitOK) {
+      drawLines(proj, viewM,
+        M.translate(hitX, hitY, hitZ),
+        glReticle, 1.0,1.0,0.3, 0.8);
+    }
 
-      // Axes XYZ au pied du cube pour debug orientation
-      const axMat = M.mvp(proj, viewM, M.translate(cubeX, cubeY+0.01, cubeZ));
-      drawLines(axMat, {vbo:makeAxisVbo(), count:6}, 1,0,0,1); // rouge=X
+    // ── Cubes ──
+    for (let i=0; i<cubes.length; i++) {
+      const c = cubes[i];
+
+      // Mode de surbrillance
+      // 0=normal  1=sélectionné  2=visé  3=saisi
+      let selMode = 0;
+      if (grabbed && i===selIdx)   selMode = 3;
+      else if (i===selIdx)         selMode = 1;
+      else if (i===aimIdx)         selMode = 2;
+
+      // Modèle : translation sol + levé 10cm
+      // PAS DE ROTATION — le cube reste orienté fixe
+      const model = M.translate(c.x, c.y + 0.10, c.z);
+      drawCube(proj, viewM, model, selMode);
+
+      // Halo de sélection (lignes autour)
+      if (i===selIdx || i===aimIdx) {
+        const haloScale = 0.115;
+        const hs = M.mul(
+          M.translate(c.x, c.y+0.10, c.z),
+          M.scale(haloScale, haloScale, haloScale)
+        );
+        const col = (i===selIdx && grabbed) ? [0.7,0.3,1.0,0.8] :
+                    i===selIdx              ? [1.0,0.85,0.2,0.8] :
+                                              [0.7,0.5,1.0,0.6];
+        drawLines(proj, viewM, hs, glReticle, ...col);
+      }
+
+      // Ombre au sol
+      const shadow = M.mul(
+        M.translate(c.x, c.y+0.001, c.z),
+        M.scale(0.13, 0.001, 0.13)
+      );
+      drawCube(proj, viewM, shadow, 0);
     }
   }
 }
 
-// Axes XYZ (créés une fois)
-let _axVbo = null;
-function makeAxisVbo(){
-  if (_axVbo) return _axVbo;
-  const v=new Float32Array([0,0,0,.15,0,0, 0,0,0,0,.15,0, 0,0,0,0,0,.15]);
-  _axVbo=gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,_axVbo);
-  gl.bufferData(gl.ARRAY_BUFFER,v,gl.STATIC_DRAW);
-  return _axVbo;
-}
-
-// ── UI ──
-let logLines=[];
-function log(t,c){
-  logLines.push(`<span style="color:${c||'#fff'}">${t}</span>`);
-  if(logLines.length>4) logLines.shift();
-  document.getElementById('log').innerHTML=logLines.join('<br>');
-}
-function setSt(t,c){
-  const s=document.getElementById('status');
-  s.textContent=t; s.style.color=c||'#fff';
-}
+// ── UI helpers ──
+function setSt(t,c){ const s=document.getElementById('status'); s.textContent=t; s.style.color=c||'#fff'; }
+function show(id){ document.getElementById(id).style.display='block'; }
+function hide(id){ document.getElementById(id).style.display='none'; }
+function tog(id,v){ document.getElementById(id).style.display=v?'block':'none'; }
 </script>
 </body>
 </html>
