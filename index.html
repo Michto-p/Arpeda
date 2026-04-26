@@ -2817,53 +2817,6 @@ function arLoop(t,frame){
           col[0],col[1],col[2], ok?0.4:0.7);
       }
     }
-      if(c.water && h>0.02){
-        arDM(proj,viewM,wMS(s.x,h+0.005,s.y,c.w*0.88,0.005,c.d*0.88),arGeo.cube,0.5);
-      }
-    }
-
-    // Zones (avec clipping par les murs)
-    if(arLayers.zones){
-      const ZH=2.25;
-      const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
-      if(sanZ.length){
-        const roomPoly = SC.walls.length && SC.walls[0].closed ? SC.walls[0].pts : null;
-        const STEP = 0.20;
-        for(let mx=mnx; mx<mxx; mx+=STEP){
-          for(let mz=mny; mz<mxy; mz+=STEP){
-            const cx2 = mx + STEP/2, cz2 = mz + STEP/2;
-            if(roomPoly && !ptInPoly(cx2, cz2, roomPoly)) continue;
-            let zone = null;
-            if(inSan(cx2, cz2)) zone = 0;
-            else {
-              const d = distToEdge(cx2, cz2);
-              if(d <= 60)       zone = 1;
-              else if(d <= 120) zone = 2;
-            }
-            if(zone === null || zone === 0) continue;
-            // Z1/Z2 : volume jusqu'à H=2.25m
-            arDM(proj, viewM, wMS(cx2, ZH/2, cz2, STEP, ZH, STEP), arGeo.cube, 0.10);
-          }
-        }
-        // Z0 = empreintes des sanitaires concernés
-        for(const s of sanZ){
-          const c=CAT_SAN[s.type];
-          arDM(proj,viewM,wMS(s.x,(c.h3||.5)/2,s.y,c.w,c.h3||.5,c.d),arGeo.cube,0.18);
-        }
-      }
-    }
-
-    // Élec
-    if(arLayers.elec){
-      for(const e of SC.electrique){
-        const c=CAT_EL[e.type]; if(!c) continue;
-        const errs=checkEl(e).errs;
-        const ok=errs.length===0;
-        arDM(proj,viewM,wMS(e.x,e.h,e.y,0.10,0.04,0.10),arGeo.cube,0.92);
-        arDM(proj,viewM,wMS(e.x,e.h,e.y,0.15,0.006,0.15),arGeo.cube,ok?0.35:0.7);
-        arDM(proj,viewM,wMS(e.x,e.h/2,e.y,0.014,e.h,0.014),arGeo.cube,ok?0.28:0.55);
-      }
-    }
 
     if(arAnchorStep>=1 && arA){
       arDL(proj,viewM,AM.T(arA.x,arA.y+0.01,arA.z),arGeo.ret,0.2,1,0.5,1);
