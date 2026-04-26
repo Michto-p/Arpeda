@@ -216,7 +216,7 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
   <div class="h-sub">Concevez votre salle de bain et visualisez les zones NF C 15-100 en réalité augmentée.</div>
   <button class="h-btn primary" onclick="enterApp()">✦ Nouveau projet</button>
   <button class="h-btn secondary" onclick="startAR()">📷 Voir en RA</button>
-  <div class="h-ver">v3.0 · ergonomie mobile</div>
+  <div class="h-ver">v3.1 · vue 3D + rendus enrichis</div>
 </div>
 
 <!-- APP -->
@@ -234,6 +234,7 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
     <div class="step-dot" data-s="1"></div>
     <div class="step-dot" data-s="2"></div>
     <div class="step-dot" data-s="3"></div>
+    <div class="step-dot" data-s="4"></div>
   </div>
 
   <!-- CONTENT -->
@@ -375,7 +376,7 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
         </div>
         <div class="nav-row">
           <button class="nav-btn prev" onclick="goStep(2)">← Sanitaires</button>
-          <button class="nav-btn next" onclick="goStep(4)">Vérifier →</button>
+          <button class="nav-btn next" onclick="goStep(4)">Vue 3D →</button>
         </div>
       </div>
       <div class="prop-sheet" id="psEl">
@@ -389,12 +390,51 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
       </div>
     </div>
 
-    <!-- ── STEP 4 : NORMES (overlay du step 3) ── -->
+    <!-- ── STEP 4 : VUE 3D ── -->
     <div class="screen off" id="s4">
+      <div class="cv-wrap" id="w3D">
+        <canvas id="cv3D" class="main"></canvas>
+        <div class="hint">Glissez 1 doigt = orbit · 2 doigts = zoom/pan</div>
+        <div class="fi-info" id="info3D">3D</div>
+        <div class="zoom-ctl">
+          <button class="zoom-btn" onclick="orbit3D(0,-0.15)">↑</button>
+          <button class="zoom-btn" onclick="orbit3D(0,0.15)">↓</button>
+          <button class="zoom-btn" onclick="reset3D()">⊡</button>
+        </div>
+        <!-- Controls 3D extra -->
+        <div style="position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px;z-index:5">
+          <div class="fi-info" id="info3D2" style="position:relative;top:auto;left:auto">—</div>
+        </div>
+      </div>
+      <div class="bottom-tb">
+        <!-- Toggles couches -->
+        <div class="tools">
+          <button class="tool on" id="t3DRoom" onclick="tog3D('room')"><span class="tool-i">🏠</span><span class="tool-t">Murs</span></button>
+          <button class="tool on" id="t3DSan"  onclick="tog3D('san')"><span class="tool-i">🛁</span><span class="tool-t">San.</span></button>
+          <button class="tool on" id="t3DEl"   onclick="tog3D('el')"><span class="tool-i">🔌</span><span class="tool-t">Élec</span></button>
+          <button class="tool on" id="t3DZ"    onclick="tog3D('zones')"><span class="tool-i">🌡</span><span class="tool-t">Zones</span></button>
+          <button class="tool" id="t3DCut"     onclick="tog3D('cut')"><span class="tool-i">✂</span><span class="tool-t">Coupe</span></button>
+        </div>
+        <!-- Échelle pièce -->
+        <div style="display:flex;gap:8px;padding:8px 10px;border-top:1px solid var(--bor2);align-items:center">
+          <div style="font-size:.62rem;font-weight:700;color:var(--mid);text-transform:uppercase">Hauteur:</div>
+          <input type="range" id="rngH" min="2.0" max="3.5" step="0.05" value="2.50"
+            oninput="setRoomH(+this.value)" style="flex:1;accent-color:var(--ac)">
+          <span id="lblH" style="font-family:ui-monospace,monospace;font-size:.72rem;font-weight:700;min-width:48px;text-align:right">2.50m</span>
+        </div>
+        <div class="nav-row">
+          <button class="nav-btn prev" onclick="goStep(3)">← Modifier</button>
+          <button class="nav-btn next" onclick="goStep(5)">Vérifier →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 5 : NORMES ── -->
+    <div class="screen off" id="s5">
       <div class="norm-scroll" id="normContent"></div>
       <div class="bottom-tb">
         <div class="nav-row">
-          <button class="nav-btn prev" onclick="goStep(3)">← Modifier</button>
+          <button class="nav-btn prev" onclick="goStep(4)">← Vue 3D</button>
           <button class="nav-btn action" onclick="startAR()">📷 Voir en RA</button>
         </div>
       </div>
@@ -461,7 +501,7 @@ const CAT_EL = {
   tableau: {label:'Tableau élec.',  ico:'⚡', zones:['hors'],minDist:120,ip:'IP21',cl:'II',defH:1.50},
 };
 
-const STEP_TITLES = ['Tracer les murs','Portes & fenêtres','Sanitaires','Appareillage','Vérification'];
+const STEP_TITLES = ['Tracer les murs','Portes & fenêtres','Sanitaires','Appareillage','Vue 3D','Vérification'];
 
 // ════════════════════════════════
 //  ÉTAT
@@ -509,17 +549,18 @@ function exitApp(){
 
 function goStep(n){
   curStep=n;
-  for(let i=0;i<5;i++){
+  for(let i=0;i<6;i++){
     const sc=document.getElementById('s'+i);
     if(sc) sc.classList.toggle('off', i!==n);
   }
-  // Step dots
+  // Step dots (0-4 sont les principales étapes, 5 = vérification)
   document.querySelectorAll('.step-dot').forEach((d,i)=>{
     d.classList.toggle('on', i===n);
     d.classList.toggle('done', i<n);
   });
   document.getElementById('topTitle').textContent = STEP_TITLES[n] || '';
-  document.getElementById('topStep').textContent = `${Math.min(n+1,4)}/4`;
+  const labels=['1/5','2/5','3/5','4/5','5/5','✓'];
+  document.getElementById('topStep').textContent = labels[n] || '';
 
   // Init canvas du step actif
   setTimeout(()=>{
@@ -527,7 +568,8 @@ function goStep(n){
     if(n===1) initCanvas('open');
     if(n===2) initCanvas('san');
     if(n===3) initCanvas('el');
-    if(n===4) renderNorms();
+    if(n===4) init3D();
+    if(n===5) renderNorms();
   }, 30);
 }
 
@@ -1093,21 +1135,43 @@ function drawWalls(ctx, v){
     }
     if(w.closed) ctx.closePath();
     if(w.closed){
-      ctx.fillStyle='rgba(30,50,80,.45)';
+      // Sol carrelé
+      ctx.fillStyle='#1a2b3e';
       ctx.fill();
+      // Texture carrelage 40cm
+      ctx.save();
+      ctx.clip();
+      const ts=0.40*v.sc;
+      ctx.strokeStyle='rgba(96,165,250,.08)';
+      ctx.lineWidth=0.5;
+      // Bbox du polygone
+      let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+      for(const p of w.pts){
+        const sp=mToScreen(p.x,p.y,v);
+        mnx=Math.min(mnx,sp.x);mxx=Math.max(mxx,sp.x);
+        mny=Math.min(mny,sp.y);mxy=Math.max(mxy,sp.y);
+      }
+      for(let x=Math.floor(mnx/ts)*ts;x<mxx;x+=ts){
+        ctx.beginPath();ctx.moveTo(x,mny);ctx.lineTo(x,mxy);ctx.stroke();
+      }
+      for(let y=Math.floor(mny/ts)*ts;y<mxy;y+=ts){
+        ctx.beginPath();ctx.moveTo(mnx,y);ctx.lineTo(mxx,y);ctx.stroke();
+      }
+      ctx.restore();
     }
+    // Mur extérieur (épais)
     ctx.strokeStyle='#3b82f6';
     ctx.lineWidth=T;
     ctx.lineJoin='round';
     ctx.lineCap='round';
     ctx.stroke();
+    // Reflet intérieur
     ctx.strokeStyle='rgba(255,255,255,.18)';
     ctx.lineWidth=1.5;
     ctx.stroke();
 
     // Cotes
     ctx.font=`9px ui-monospace,monospace`;
-    ctx.fillStyle='rgba(150,180,220,.85)';
     ctx.textAlign='center';
     const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;
     for(let i=0;i<pts.length-1;i++){
@@ -1118,9 +1182,9 @@ function drawWalls(ctx, v){
       ctx.save();
       ctx.translate(m.x,m.y);
       ctx.rotate(Math.atan2(b.y-a.y, b.x-a.x));
-      ctx.fillStyle='rgba(20,26,38,.9)';
+      ctx.fillStyle='rgba(20,26,38,.92)';
       ctx.fillRect(-22,-15,44,11);
-      ctx.fillStyle='#7d8aa3';
+      ctx.fillStyle='#9ab4d4';
       ctx.fillText(len.toFixed(2)+'m', 0, -7);
       ctx.restore();
     }
@@ -1195,34 +1259,174 @@ function drawSanitaires(ctx, v, name){
       ctx.shadowColor='rgba(96,165,250,.7)';
       ctx.shadowBlur=14;
     }
-    // Body
-    ctx.fillStyle = c.water?'#1e3a5a':'#2a3040';
-    rr(ctx, x, y, w, h, 6);
-    ctx.fill();
-    ctx.strokeStyle=sel?'#60a5fa':(c.water?'#3a6080':'#4a5060');
-    ctx.lineWidth=sel?2.5:1.5;
-    rr(ctx, x, y, w, h, 6);
-    ctx.stroke();
-    ctx.shadowBlur=0;
-    // Inner highlight (eau)
-    if(c.water && c.h3>0.05){
-      ctx.fillStyle='rgba(96,165,250,.15)';
-      rr(ctx, x+w*.08, y+h*.08, w*.84, h*.84, 4);
-      ctx.fill();
-    }
-    // Icon
-    ctx.font=`${Math.min(w,h)*0.42}px sans-serif`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(c.ico, x+w/2, y+h/2);
-    ctx.textBaseline='alphabetic';
-    // Label
+    drawSanShape(ctx, s.type, x, y, w, h, sel, c);
+    ctx.restore();
+    // Label hors save/restore pour éviter shadow
     if(name==='san' || sel){
       ctx.font=`bold 9px ui-monospace,monospace`;
       ctx.fillStyle=sel?'#60a5fa':'rgba(150,180,220,.75)';
       ctx.textAlign='center';
       ctx.fillText(c.label, x+w/2, y+h+12);
     }
-    ctx.restore();
+  }
+}
+
+// Rendu réaliste 2D de chaque sanitaire vue de dessus
+function drawSanShape(ctx, type, x, y, w, h, sel, c){
+  const stk = sel ? '#60a5fa' : (c.water?'#3a6080':'#4a5060');
+  const sw = sel ? 2.5 : 1.5;
+
+  switch(type){
+    case 'baignoire': {
+      // Contour extérieur
+      ctx.fillStyle='#243d54';
+      rr(ctx, x, y, w, h, 8); ctx.fill();
+      // Cuve intérieure céramique
+      ctx.fillStyle='#3a5a78';
+      const inset=Math.min(w,h)*0.10;
+      rr(ctx, x+inset, y+inset, w-inset*2, h-inset*2, 6); ctx.fill();
+      // Reflet eau
+      ctx.fillStyle='rgba(96,165,250,.30)';
+      rr(ctx, x+inset+2, y+inset+2, w-inset*2-4, h-inset*2-4, 5); ctx.fill();
+      // Robinetterie (cercle au bord)
+      ctx.fillStyle='#94a3b8';
+      ctx.beginPath();ctx.arc(x+w*0.15, y+h*0.5, Math.min(w,h)*0.04, 0, Math.PI*2);ctx.fill();
+      // Bonde d'évacuation
+      ctx.fillStyle='#475569';
+      ctx.beginPath();ctx.arc(x+w*0.85, y+h*0.5, Math.min(w,h)*0.05, 0, Math.PI*2);ctx.fill();
+      // Contour
+      ctx.strokeStyle=stk;ctx.lineWidth=sw;
+      rr(ctx, x, y, w, h, 8);ctx.stroke();
+      break;
+    }
+    case 'douche_it': {
+      // Receveur
+      ctx.fillStyle='#2a4560';
+      rr(ctx, x, y, w, h, 4);ctx.fill();
+      // Carrelage (lignes diagonales pour antidérapant)
+      ctx.strokeStyle='rgba(96,165,250,.20)';
+      ctx.lineWidth=0.5;
+      const step=Math.max(8, Math.min(w,h)/8);
+      for(let i=-w;i<w*2;i+=step){
+        ctx.beginPath();ctx.moveTo(x+i,y);ctx.lineTo(x+i+h,y+h);ctx.stroke();
+      }
+      // Bonde centrale
+      ctx.fillStyle='#475569';
+      ctx.beginPath();ctx.arc(x+w/2, y+h/2, Math.min(w,h)*0.08, 0, Math.PI*2);ctx.fill();
+      ctx.fillStyle='#1e293b';
+      ctx.beginPath();ctx.arc(x+w/2, y+h/2, Math.min(w,h)*0.06, 0, Math.PI*2);ctx.fill();
+      // Pomme de douche (coin)
+      ctx.fillStyle='#94a3b8';
+      ctx.beginPath();ctx.arc(x+w*0.15, y+h*0.15, Math.min(w,h)*0.06, 0, Math.PI*2);ctx.fill();
+      // Contour
+      ctx.strokeStyle=stk;ctx.lineWidth=sw;
+      rr(ctx, x, y, w, h, 4);ctx.stroke();
+      break;
+    }
+    case 'lavabo':
+    case 'vasque': {
+      // Plan de toilette
+      ctx.fillStyle='#1e3550';
+      rr(ctx, x, y, w, h, 4);ctx.fill();
+      // Vasque (ovale ou cercle)
+      ctx.fillStyle='#3a5a78';
+      const cx=x+w/2, cy=y+h*0.55;
+      ctx.beginPath();
+      if(type==='vasque') ctx.arc(cx, cy, Math.min(w,h)*0.35, 0, Math.PI*2);
+      else ctx.ellipse(cx, cy, w*0.38, h*0.32, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Reflet
+      ctx.fillStyle='rgba(96,165,250,.25)';
+      ctx.beginPath();
+      if(type==='vasque') ctx.arc(cx, cy, Math.min(w,h)*0.30, 0, Math.PI*2);
+      else ctx.ellipse(cx, cy, w*0.34, h*0.28, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Bonde
+      ctx.fillStyle='#475569';
+      ctx.beginPath();ctx.arc(cx, cy, Math.min(w,h)*0.05, 0, Math.PI*2);ctx.fill();
+      // Robinet (haut)
+      ctx.fillStyle='#94a3b8';
+      ctx.fillRect(cx-2, y+h*0.15, 4, h*0.12);
+      ctx.beginPath();ctx.arc(cx, y+h*0.27, 3, 0, Math.PI*2);ctx.fill();
+      ctx.strokeStyle=stk;ctx.lineWidth=sw;
+      rr(ctx, x, y, w, h, 4);ctx.stroke();
+      break;
+    }
+    case 'wc': {
+      // Réservoir (en haut)
+      ctx.fillStyle='#2a3548';
+      rr(ctx, x+w*0.05, y, w*0.9, h*0.32, 3);ctx.fill();
+      ctx.strokeStyle='#475569';ctx.lineWidth=1;
+      rr(ctx, x+w*0.05, y, w*0.9, h*0.32, 3);ctx.stroke();
+      // Cuvette (forme ovale)
+      ctx.fillStyle='#3a4658';
+      ctx.beginPath();
+      ctx.moveTo(x+w*0.12, y+h*0.32);
+      ctx.lineTo(x+w*0.88, y+h*0.32);
+      ctx.quadraticCurveTo(x+w*1.05, y+h*0.65, x+w*0.85, y+h*0.97);
+      ctx.lineTo(x+w*0.15, y+h*0.97);
+      ctx.quadraticCurveTo(x-w*0.05, y+h*0.65, x+w*0.12, y+h*0.32);
+      ctx.closePath();ctx.fill();
+      // Lunette intérieure
+      ctx.fillStyle='#1e2838';
+      ctx.beginPath();
+      ctx.ellipse(x+w/2, y+h*0.65, w*0.30, h*0.22, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Contour cuvette
+      ctx.strokeStyle=stk;ctx.lineWidth=sw;
+      ctx.beginPath();
+      ctx.moveTo(x+w*0.12, y+h*0.32);
+      ctx.lineTo(x+w*0.88, y+h*0.32);
+      ctx.quadraticCurveTo(x+w*1.05, y+h*0.65, x+w*0.85, y+h*0.97);
+      ctx.lineTo(x+w*0.15, y+h*0.97);
+      ctx.quadraticCurveTo(x-w*0.05, y+h*0.65, x+w*0.12, y+h*0.32);
+      ctx.closePath();ctx.stroke();
+      break;
+    }
+    case 'bidet': {
+      ctx.fillStyle='#2a3548';
+      rr(ctx, x, y, w, h, 4);ctx.fill();
+      ctx.fillStyle='#3a4658';
+      ctx.beginPath();
+      ctx.ellipse(x+w/2, y+h/2, w*0.42, h*0.38, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle='#1e2838';
+      ctx.beginPath();
+      ctx.ellipse(x+w/2, y+h/2, w*0.30, h*0.26, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle=stk;ctx.lineWidth=sw;
+      rr(ctx, x, y, w, h, 4);ctx.stroke();
+      break;
+    }
+    case 'balneo': {
+      // Identique baignoire mais avec jets
+      ctx.fillStyle='#243d54';
+      rr(ctx, x, y, w, h, 8);ctx.fill();
+      ctx.fillStyle='#3a5a78';
+      const inset=Math.min(w,h)*0.10;
+      rr(ctx, x+inset, y+inset, w-inset*2, h-inset*2, 6);ctx.fill();
+      ctx.fillStyle='rgba(96,165,250,.30)';
+      rr(ctx, x+inset+2, y+inset+2, w-inset*2-4, h-inset*2-4, 5);ctx.fill();
+      // Jets balnéo (cercles aux 4 coins intérieurs)
+      ctx.fillStyle='#7c3aed';
+      const jr=Math.min(w,h)*0.04;
+      [[0.20,0.35],[0.80,0.35],[0.20,0.65],[0.80,0.65]].forEach(([fx,fy])=>{
+        ctx.beginPath();ctx.arc(x+w*fx, y+h*fy, jr, 0, Math.PI*2);ctx.fill();
+      });
+      ctx.strokeStyle=stk;ctx.lineWidth=sw;
+      rr(ctx, x, y, w, h, 8);ctx.stroke();
+      break;
+    }
+    default: {
+      ctx.fillStyle = c.water?'#1e3a5a':'#2a3040';
+      rr(ctx, x, y, w, h, 6);ctx.fill();
+      ctx.font=`${Math.min(w,h)*0.42}px sans-serif`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(c.ico, x+w/2, y+h/2);
+      ctx.textBaseline='alphabetic';
+      ctx.strokeStyle=stk;ctx.lineWidth=sw;
+      rr(ctx, x, y, w, h, 6);ctx.stroke();
+    }
   }
 }
 
@@ -1465,6 +1669,546 @@ function renderNorms(){
     ${SC.electrique.length?cards:'<div style="text-align:center;padding:20px;color:var(--mid);font-size:.8rem">Aucun appareil électrique placé</div>'}
     <div style="height:20px"></div>`;
 }
+
+// ════════════════════════════════
+//  VUE 3D INTERACTIVE (hors RA)
+//  Canvas WebGL avec orbit + zoom + pan
+// ════════════════════════════════
+let v3D = null;       // contexte WebGL
+let v3DProg = null;
+let v3DProgLine = null;
+let v3DGeo = {};
+let v3DBuilt = false;
+// Caméra orbit
+const CAM3D = {
+  yaw: 0.7, pitch: -0.5,    // angles en radians
+  dist: 5.5,                 // distance au centre
+  targetX: 0, targetY: 0.8, targetZ: 0,  // point regardé (centre pièce)
+};
+let v3DLayers = {room:true, san:true, el:true, zones:true, cut:false};
+let v3DRaf = null;
+
+function init3D(){
+  const wrap = document.getElementById('w3D');
+  const cv = document.getElementById('cv3D');
+  if(!cv || !wrap) return;
+  const dpr = window.devicePixelRatio||1;
+  cv.width = wrap.clientWidth*dpr;
+  cv.height = wrap.clientHeight*dpr;
+  cv.style.width = wrap.clientWidth+'px';
+  cv.style.height = wrap.clientHeight+'px';
+
+  if(!v3D){
+    v3D = cv.getContext('webgl', {alpha:false, antialias:true});
+    if(!v3D){ alert('WebGL non supporté'); return; }
+    setup3DEvents(cv);
+  }
+  build3DGL();
+  // Centrer caméra sur la pièce
+  fit3DCamera();
+  // Lancer la boucle de rendu
+  if(!v3DRaf) v3DRaf = requestAnimationFrame(loop3D);
+}
+
+function fit3DCamera(){
+  let mnx=0,mxx=3,mny=0,mxy=2.4;
+  if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
+    mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
+    mny=Math.min(mny,p.y); mxy=Math.max(mxy,p.y);
+  }
+  CAM3D.targetX = (mnx+mxx)/2;
+  CAM3D.targetZ = (mny+mxy)/2;
+  CAM3D.targetY = (SC.roomH||2.5)/2;
+  CAM3D.dist = Math.max(mxx-mnx, mxy-mny) * 1.4 + 2;
+  CAM3D.yaw = 0.6;
+  CAM3D.pitch = -0.4;
+}
+
+function reset3D(){ fit3DCamera(); }
+
+function setRoomH(h){
+  SC.roomH = h;
+  document.getElementById('lblH').textContent = h.toFixed(2)+'m';
+  // Refresh canvas du step si actif
+}
+
+function tog3D(k){
+  v3DLayers[k] = !v3DLayers[k];
+  const id={room:'t3DRoom',san:'t3DSan',el:'t3DEl',zones:'t3DZ',cut:'t3DCut'}[k];
+  document.getElementById(id).classList.toggle('on', v3DLayers[k]);
+}
+
+function orbit3D(dy, dp){
+  CAM3D.yaw += dy;
+  CAM3D.pitch = Math.max(-Math.PI/2+0.1, Math.min(-0.05, CAM3D.pitch + dp));
+}
+
+function setup3DEvents(cv){
+  let last = null;
+  let touches = [];
+
+  cv.addEventListener('mousedown', e=>{ last = {x:e.clientX, y:e.clientY, btn:e.button}; });
+  document.addEventListener('mouseup', ()=>{ last = null; });
+  document.addEventListener('mousemove', e=>{
+    if(!last) return;
+    const dx = e.clientX-last.x, dy = e.clientY-last.y;
+    last = {x:e.clientX, y:e.clientY};
+    if(e.shiftKey){
+      // Pan
+      CAM3D.targetX -= dx*0.005;
+      CAM3D.targetZ -= dy*0.005;
+    } else {
+      CAM3D.yaw   -= dx*0.008;
+      CAM3D.pitch  = Math.max(-Math.PI/2+0.1, Math.min(-0.05, CAM3D.pitch - dy*0.008));
+    }
+  });
+  cv.addEventListener('wheel', e=>{
+    e.preventDefault();
+    CAM3D.dist = Math.max(0.5, Math.min(20, CAM3D.dist * (e.deltaY>0?1.12:0.89)));
+  }, {passive:false});
+
+  // Touch
+  cv.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    touches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
+  }, {passive:false});
+  cv.addEventListener('touchmove', e=>{
+    e.preventDefault();
+    const ts = Array.from(e.touches);
+    if(ts.length===1 && touches.length===1){
+      const dx = ts[0].clientX - touches[0].x;
+      const dy = ts[0].clientY - touches[0].y;
+      CAM3D.yaw   -= dx*0.008;
+      CAM3D.pitch  = Math.max(-Math.PI/2+0.1, Math.min(-0.05, CAM3D.pitch - dy*0.008));
+    } else if(ts.length===2 && touches.length===2){
+      // Pinch
+      const d0 = Math.hypot(touches[1].x-touches[0].x, touches[1].y-touches[0].y);
+      const d1 = Math.hypot(ts[1].clientX-ts[0].clientX, ts[1].clientY-ts[0].clientY);
+      if(d0>0) CAM3D.dist = Math.max(0.5, Math.min(20, CAM3D.dist * d0/d1));
+      // Pan center
+      const c0 = {x:(touches[0].x+touches[1].x)/2, y:(touches[0].y+touches[1].y)/2};
+      const c1 = {x:(ts[0].clientX+ts[1].clientX)/2, y:(ts[0].clientY+ts[1].clientY)/2};
+      CAM3D.targetX -= (c1.x-c0.x)*0.005;
+      CAM3D.targetZ -= (c1.y-c0.y)*0.005;
+    }
+    touches = ts.map(t=>({x:t.clientX,y:t.clientY}));
+  }, {passive:false});
+  cv.addEventListener('touchend', ()=>{ touches=[]; }, {passive:false});
+}
+
+function build3DGL(){
+  if(v3DBuilt) return;
+  v3DBuilt = true;
+  const gl = v3D;
+
+  v3DProg = compileProg(gl,
+    `attribute vec3 aPos; attribute vec3 aCol; attribute vec3 aNorm;
+     uniform mat4 uMVP, uM;
+     varying vec3 vC, vN, vP;
+     void main(){
+       gl_Position = uMVP * vec4(aPos,1.0);
+       vN = normalize(vec3(uM * vec4(aNorm,0.0)));
+       vC = aCol;
+       vP = (uM * vec4(aPos,1.0)).xyz;
+     }`,
+    `precision mediump float;
+     varying vec3 vC, vN, vP;
+     uniform float uA;
+     void main(){
+       vec3 L1 = normalize(vec3(0.5, 1.5, 0.7));
+       vec3 L2 = normalize(vec3(-0.6, 1.0, -0.4));
+       float d1 = max(dot(vN,L1),0.0);
+       float d2 = max(dot(vN,L2),0.0)*0.4;
+       float light = 0.35 + (d1+d2)*0.55;
+       gl_FragColor = vec4(vC * light, uA);
+     }`);
+
+  v3DProgLine = compileProg(gl,
+    `attribute vec3 aPos; uniform mat4 uMVP;
+     void main(){ gl_Position = uMVP * vec4(aPos,1.0); }`,
+    `precision mediump float; uniform vec4 uC;
+     void main(){ gl_FragColor = uC; }`);
+
+  // Cube unitaire [-0.5, 0.5]
+  const s = 0.5;
+  const F = [
+    {v:[[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]],     n:[0,0,1]},
+    {v:[[s,-s,-s],[-s,-s,-s],[-s,s,-s],[s,s,-s]],  n:[0,0,-1]},
+    {v:[[s,-s,s],[s,-s,-s],[s,s,-s],[s,s,s]],       n:[1,0,0]},
+    {v:[[-s,-s,-s],[-s,-s,s],[-s,s,s],[-s,s,-s]],  n:[-1,0,0]},
+    {v:[[-s,s,s],[s,s,s],[s,s,-s],[-s,s,-s]],       n:[0,1,0]},
+    {v:[[-s,-s,-s],[s,-s,-s],[s,-s,s],[-s,-s,s]],   n:[0,-1,0]},
+  ];
+  const cv=[], ci=[];
+  F.forEach(({v,n}, fi)=>{
+    const b = fi*4;
+    v.forEach(p => cv.push(...p, 1,1,1, ...n));  // couleur unifiée (sera overridée)
+    ci.push(b,b+1,b+2, b,b+2,b+3);
+  });
+  v3DGeo.cube = makeMesh(gl, new Float32Array(cv), new Uint16Array(ci));
+}
+
+function compileProg(gl, vsrc, fsrc){
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, vsrc); gl.compileShader(vs);
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, fsrc); gl.compileShader(fs);
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
+  return p;
+}
+
+function makeMesh(gl, verts, idx){
+  const vbo = gl.createBuffer(), ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  return {vbo, ibo, count:idx.length};
+}
+
+function makeLines(gl, verts){
+  const vbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+  return {vbo, count:verts.length/3};
+}
+
+// Matrices
+const M3 = {
+  id(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])},
+  mul(a,b){
+    const o=new Float32Array(16);
+    for(let c=0;c<4;c++) for(let r=0;r<4;r++) for(let k=0;k<4;k++)
+      o[c*4+r] += a[k*4+r] * b[c*4+k];
+    return o;
+  },
+  T(x,y,z){ const m=M3.id(); m[12]=x;m[13]=y;m[14]=z; return m; },
+  S(x,y,z){ const m=M3.id(); m[0]=x;m[5]=y;m[10]=z; return m; },
+  RY(a){ const c=Math.cos(a),s=Math.sin(a),m=M3.id(); m[0]=c;m[8]=s;m[2]=-s;m[10]=c; return m; },
+  RX(a){ const c=Math.cos(a),s=Math.sin(a),m=M3.id(); m[5]=c;m[9]=-s;m[6]=s;m[10]=c; return m; },
+  // Matrice projection perspective
+  perspective(fovY, aspect, near, far){
+    const f = 1.0/Math.tan(fovY/2);
+    const nf = 1/(near-far);
+    return new Float32Array([
+      f/aspect, 0, 0, 0,
+      0, f, 0, 0,
+      0, 0, (far+near)*nf, -1,
+      0, 0, 2*far*near*nf, 0
+    ]);
+  },
+  // LookAt simplifié à partir de orbit
+  viewFromOrbit(target, yaw, pitch, dist){
+    // Position caméra
+    const cy=Math.cos(yaw), sy=Math.sin(yaw);
+    const cp=Math.cos(pitch), sp=Math.sin(pitch);
+    const cx = target[0] + dist*cp*sy;
+    const cyP = target[1] + dist*sp*-1;  // pitch négatif = caméra au-dessus
+    const cz = target[2] + dist*cp*cy;
+    return M3.lookAt([cx,cyP,cz], target, [0,1,0]);
+  },
+  lookAt(eye, target, up){
+    const z0=eye[0]-target[0], z1=eye[1]-target[1], z2=eye[2]-target[2];
+    const zl=Math.hypot(z0,z1,z2);
+    const fz0=z0/zl, fz1=z1/zl, fz2=z2/zl;
+    let x0=up[1]*fz2-up[2]*fz1, x1=up[2]*fz0-up[0]*fz2, x2=up[0]*fz1-up[1]*fz0;
+    const xl=Math.hypot(x0,x1,x2);
+    x0/=xl;x1/=xl;x2/=xl;
+    const y0=fz1*x2-fz2*x1, y1=fz2*x0-fz0*x2, y2=fz0*x1-fz1*x0;
+    return new Float32Array([
+      x0, y0, fz0, 0,
+      x1, y1, fz1, 0,
+      x2, y2, fz2, 0,
+      -(x0*eye[0]+x1*eye[1]+x2*eye[2]),
+      -(y0*eye[0]+y1*eye[1]+y2*eye[2]),
+      -(fz0*eye[0]+fz1*eye[1]+fz2*eye[2]),
+      1
+    ]);
+  }
+};
+
+function draw3DBox(proj, view, model, col, alpha){
+  const gl = v3D;
+  const mvp = M3.mul(M3.mul(proj, view), model);
+  gl.useProgram(v3DProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, v3DGeo.cube.vbo);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, v3DGeo.cube.ibo);
+  const stride = 36;
+  const sa=(n,sz,o)=>{
+    const l=gl.getAttribLocation(v3DProg, n);
+    if(l<0) return;
+    gl.enableVertexAttribArray(l);
+    gl.vertexAttribPointer(l, sz, gl.FLOAT, false, stride, o*4);
+  };
+  sa('aPos',3,0); sa('aCol',3,3); sa('aNorm',3,6);
+  // Hack : on remplace la couleur via uColor uniforme — non, on a aCol
+  // → Solution simple : on update les couleurs en passant par un attrib divisé
+  // Mais ici on garde 1 couleur via uniform supplémentaire
+  gl.uniformMatrix4fv(gl.getUniformLocation(v3DProg,'uMVP'), false, mvp);
+  gl.uniformMatrix4fv(gl.getUniformLocation(v3DProg,'uM'), false, model);
+  gl.uniform1f(gl.getUniformLocation(v3DProg,'uA'), alpha||1);
+  // Pour la couleur : on injecte via vertexAttrib3f (couleur globale)
+  const cl = gl.getAttribLocation(v3DProg,'aCol');
+  if(cl>=0){
+    gl.disableVertexAttribArray(cl);
+    gl.vertexAttrib3f(cl, col[0], col[1], col[2]);
+  }
+  gl.drawElements(gl.TRIANGLES, v3DGeo.cube.count, gl.UNSIGNED_SHORT, 0);
+  // Restore
+  if(cl>=0){
+    gl.bindBuffer(gl.ARRAY_BUFFER, v3DGeo.cube.vbo);
+    gl.enableVertexAttribArray(cl);
+    gl.vertexAttribPointer(cl, 3, gl.FLOAT, false, stride, 12);
+  }
+}
+
+function draw3DLines(proj, view, model, verts, col){
+  const gl = v3D;
+  const mvp = M3.mul(M3.mul(proj, view), model);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+  gl.useProgram(v3DProgLine);
+  const l = gl.getAttribLocation(v3DProgLine,'aPos');
+  gl.enableVertexAttribArray(l);
+  gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 0, 0);
+  gl.uniformMatrix4fv(gl.getUniformLocation(v3DProgLine,'uMVP'), false, mvp);
+  gl.uniform4fv(gl.getUniformLocation(v3DProgLine,'uC'), col);
+  gl.drawArrays(gl.LINES, 0, verts.length/3);
+  gl.deleteBuffer(buf);
+}
+
+function loop3D(){
+  v3DRaf = requestAnimationFrame(loop3D);
+  // Skip rendu si pas sur l'écran 3D
+  if(curStep !== 4){ return; }
+  if(!v3D || !v3DGeo.cube) return;
+
+  const gl = v3D;
+  const cv = document.getElementById('cv3D');
+  if(!cv) return;
+  gl.viewport(0, 0, cv.width, cv.height);
+  gl.clearColor(0.04, 0.07, 0.13, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  // Bounding box pièce → centrer
+  let mnx=0,mxx=3,mny=0,mxy=2.4;
+  if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
+    mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
+    mny=Math.min(mny,p.y); mxy=Math.max(mxy,p.y);
+  }
+  const rcx=(mnx+mxx)/2, rcz=(mny+mxy)/2;
+  const RH = SC.roomH || 2.5;
+  const rW = mxx-mnx, rD = mxy-mny;
+
+  // Caméra
+  const aspect = cv.width / cv.height;
+  const proj = M3.perspective(50*Math.PI/180, aspect, 0.05, 100);
+  const view = M3.viewFromOrbit(
+    [CAM3D.targetX, CAM3D.targetY, CAM3D.targetZ],
+    CAM3D.yaw, CAM3D.pitch, CAM3D.dist
+  );
+
+  // ── PLAFOND coupé ? ──
+  const ceilingVisible = !v3DLayers.cut;
+
+  // ── SOL ──
+  if(v3DLayers.room){
+    const floorM = M3.mul(M3.T(rcx, 0, rcz), M3.S(rW+0.05, 0.02, rD+0.05));
+    draw3DBox(proj, view, floorM, [0.10, 0.18, 0.30], 1.0);
+    // Lignes carrelage 40cm
+    const tileLines = [];
+    for(let x=mnx;x<=mxx+0.01;x+=0.40){
+      tileLines.push(x, 0.012, mny, x, 0.012, mxy);
+    }
+    for(let z=mny;z<=mxy+0.01;z+=0.40){
+      tileLines.push(mnx, 0.012, z, mxx, 0.012, z);
+    }
+    if(tileLines.length){
+      draw3DLines(proj, view, M3.id(), tileLines, [0.4, 0.6, 0.9, 0.4]);
+    }
+  }
+
+  // ── MURS ──
+  if(v3DLayers.room && SC.walls.length){
+    const wt = 0.04;
+    // Mur nord (y=mny)
+    drawWall3D(proj, view, mnx, mxx, mny, wt, RH, [0.30, 0.42, 0.60], 'NS');
+    // Mur sud
+    drawWall3D(proj, view, mnx, mxx, mxy, wt, RH, [0.30, 0.42, 0.60], 'NS');
+    // Mur ouest (x=mnx)
+    drawWall3D(proj, view, mny, mxy, mnx, wt, RH, [0.32, 0.45, 0.62], 'EW');
+    // Mur est
+    drawWall3D(proj, view, mny, mxy, mxx, wt, RH, [0.32, 0.45, 0.62], 'EW');
+
+    // Plafond (si non coupé)
+    if(ceilingVisible){
+      const ceilM = M3.mul(M3.T(rcx, RH, rcz), M3.S(rW, 0.02, rD));
+      draw3DBox(proj, view, ceilM, [0.85, 0.88, 0.92], 0.85);
+    }
+
+    // Arêtes de la pièce
+    const corners = [
+      [mnx,mny],[mxx,mny],[mxx,mxy],[mnx,mxy]
+    ];
+    const edgeLines = [];
+    for(const [x,z] of corners){
+      edgeLines.push(x,0.02,z, x,RH-0.01,z);
+    }
+    // Haut
+    for(let i=0;i<4;i++){
+      const a=corners[i], b=corners[(i+1)%4];
+      edgeLines.push(a[0],RH-0.01,a[1], b[0],RH-0.01,b[1]);
+    }
+    draw3DLines(proj, view, M3.id(), edgeLines, [0.55, 0.75, 1.0, 0.7]);
+  }
+
+  // ── SANITAIRES ──
+  if(v3DLayers.san){
+    for(const s of SC.sanitaires){
+      const c = CAT_SAN[s.type];
+      const h = c.h3 || 0.5;
+      // Couleur par type
+      const colors = {
+        baignoire: [0.85, 0.92, 0.96],
+        douche_it: [0.55, 0.75, 0.92],
+        douche_cab:[0.55, 0.75, 0.92],
+        lavabo:    [0.92, 0.96, 1.0],
+        vasque:    [0.92, 0.96, 1.0],
+        wc:        [0.95, 0.95, 0.95],
+        bidet:     [0.93, 0.93, 0.95],
+        balneo:    [0.85, 0.92, 0.96],
+      };
+      const col = colors[s.type] || [0.7, 0.8, 0.9];
+      // Corps principal
+      const m = M3.mul(M3.T(s.x, h/2, s.y), M3.S(c.w, h, c.d));
+      draw3DBox(proj, view, m, col, 1.0);
+      // Surface eau pour baignoire/douche/balneo
+      if(c.water && h > 0.05){
+        const wm = M3.mul(M3.T(s.x, h+0.01, s.y), M3.S(c.w*0.86, 0.01, c.d*0.86));
+        draw3DBox(proj, view, wm, [0.4, 0.7, 0.95], 0.6);
+      }
+      // Robinet (cylindre simplifié = boîte verticale fine)
+      if(c.water && (s.type==='lavabo'||s.type==='vasque'||s.type==='baignoire'||s.type==='balneo')){
+        const tapM = M3.mul(M3.T(s.x-c.w*0.35, h+0.10, s.y-c.d*0.35), M3.S(0.04, 0.20, 0.04));
+        draw3DBox(proj, view, tapM, [0.7, 0.75, 0.82], 1.0);
+      }
+    }
+  }
+
+  // ── ZONES NF C 15-100 ──
+  if(v3DLayers.zones){
+    const ZH = 2.25;
+    for(const s of SC.sanitaires){
+      const c = CAT_SAN[s.type];
+      if(!c?.water || !c.zR) continue;
+      const {z1:r1, z2:r2} = c.zR;
+      // Z2 (bleu, plus large)
+      const z2m = M3.mul(M3.T(s.x, ZH/2, s.y), M3.S(c.w+2*r2, ZH, c.d+2*r2));
+      draw3DBox(proj, view, z2m, [0.15, 0.40, 0.85], 0.10);
+      // Z1 (orange)
+      const z1m = M3.mul(M3.T(s.x, ZH/2, s.y), M3.S(c.w+2*r1, ZH, c.d+2*r1));
+      draw3DBox(proj, view, z1m, [0.95, 0.60, 0.10], 0.13);
+      // Z0 (rouge, dans l'empreinte)
+      const z0m = M3.mul(M3.T(s.x, (c.h3||0.5)/2, s.y), M3.S(c.w, c.h3||0.5, c.d));
+      draw3DBox(proj, view, z0m, [0.85, 0.20, 0.20], 0.20);
+
+      // Arêtes des zones
+      const drawZoneEdges = (cx, cy, cz, sx, sy, sz, col)=>{
+        const hx=sx/2, hy=sy/2, hz=sz/2;
+        const lines = [
+          // Bottom rectangle
+          cx-hx,cy-hy,cz-hz, cx+hx,cy-hy,cz-hz,
+          cx+hx,cy-hy,cz-hz, cx+hx,cy-hy,cz+hz,
+          cx+hx,cy-hy,cz+hz, cx-hx,cy-hy,cz+hz,
+          cx-hx,cy-hy,cz+hz, cx-hx,cy-hy,cz-hz,
+          // Top
+          cx-hx,cy+hy,cz-hz, cx+hx,cy+hy,cz-hz,
+          cx+hx,cy+hy,cz-hz, cx+hx,cy+hy,cz+hz,
+          cx+hx,cy+hy,cz+hz, cx-hx,cy+hy,cz+hz,
+          cx-hx,cy+hy,cz+hz, cx-hx,cy+hy,cz-hz,
+          // Vertical
+          cx-hx,cy-hy,cz-hz, cx-hx,cy+hy,cz-hz,
+          cx+hx,cy-hy,cz-hz, cx+hx,cy+hy,cz-hz,
+          cx+hx,cy-hy,cz+hz, cx+hx,cy+hy,cz+hz,
+          cx-hx,cy-hy,cz+hz, cx-hx,cy+hy,cz+hz,
+        ];
+        draw3DLines(proj, view, M3.id(), lines, col);
+      };
+      drawZoneEdges(s.x, ZH/2, s.y, c.w+2*r2, ZH, c.d+2*r2, [0.20, 0.55, 1.0, 0.4]);
+      drawZoneEdges(s.x, ZH/2, s.y, c.w+2*r1, ZH, c.d+2*r1, [1.0, 0.65, 0.10, 0.5]);
+    }
+  }
+
+  // ── ÉLECTRIQUE ──
+  if(v3DLayers.el){
+    for(const e of SC.electrique){
+      const c = CAT_EL[e.type];
+      if(!c) continue;
+      const {errs, warns} = checkEl(e);
+      const col = errs.length ? [0.95, 0.27, 0.27] : (warns.length ? [0.96, 0.62, 0.04] : [0.13, 0.78, 0.36]);
+      // Boîtier
+      const m = M3.mul(M3.T(e.x, e.h, e.y), M3.S(0.10, 0.04, 0.10));
+      draw3DBox(proj, view, m, col, 1.0);
+      // Halo erreur
+      if(errs.length){
+        const halo = M3.mul(M3.T(e.x, e.h, e.y), M3.S(0.16, 0.005, 0.16));
+        draw3DBox(proj, view, halo, [0.95, 0.27, 0.27], 0.6);
+      }
+      // Tige verticale (lien sol→appareil)
+      const stem = M3.mul(M3.T(e.x, e.h/2, e.y), M3.S(0.012, e.h, 0.012));
+      draw3DBox(proj, view, stem, col, 0.5);
+    }
+  }
+
+  // ── OUVERTURES (rectangles dans les murs) ──
+  if(v3DLayers.room){
+    for(const op of SC.openings){
+      const w = SC.walls[op.wi]; if(!w) continue;
+      const pts = w.closed?[...w.pts,w.pts[0]]:w.pts;
+      if(op.si >= pts.length-1) continue;
+      const a = pts[op.si], b = pts[op.si+1];
+      const sl = Math.hypot(b.x-a.x, b.y-a.y);
+      const hw = op.w/2/sl;
+      const t1 = Math.max(0, op.t-hw), t2 = Math.min(1, op.t+hw);
+      const p1 = {x: a.x+(b.x-a.x)*t1, y: a.y+(b.y-a.y)*t1};
+      const p2 = {x: a.x+(b.x-a.x)*t2, y: a.y+(b.y-a.y)*t2};
+      const cx = (p1.x+p2.x)/2, cz = (p1.y+p2.y)/2;
+      const ow = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+      const oh = op.type==='window' ? 1.20 : 2.10;
+      const oy = op.type==='window' ? 1.10 : oh/2;
+      // Rectangle "trou" — boîte semi-transparente
+      const angle = Math.atan2(p2.x-p1.x, p2.y-p1.y);
+      const m = M3.mul(M3.mul(M3.T(cx, oy, cz), M3.RY(angle)), M3.S(ow, oh, 0.08));
+      draw3DBox(proj, view, m, op.type==='window'?[0.4,0.7,0.95]:[0.6,0.4,0.2], 0.65);
+    }
+  }
+
+  // Update info
+  document.getElementById('info3D').innerHTML =
+    `<b>Vue 3D</b> — ${rW.toFixed(1)}×${rD.toFixed(1)}×${RH.toFixed(2)}m`;
+  document.getElementById('info3D2').innerHTML =
+    `<b>${SC.sanitaires.length}</b> san · <b>${SC.electrique.length}</b> él`;
+}
+
+function drawWall3D(proj, view, lo, hi, fix, thickness, height, col, axis){
+  const len = hi - lo;
+  const mid = (lo+hi)/2;
+  let m;
+  if(axis==='NS'){
+    // mur le long de l'axe X, fix = z
+    m = M3.mul(M3.T(mid, height/2, fix), M3.S(len, height, thickness));
+  } else {
+    // mur le long de l'axe Z, fix = x
+    m = M3.mul(M3.T(fix, height/2, mid), M3.S(thickness, height, len));
+  }
+  draw3DBox(proj, view, m, col, 0.95);
+}
+
 
 // ════════════════════════════════
 //  AR — WebXR
@@ -1823,6 +2567,18 @@ window.addEventListener('resize',()=>{
   ['draw','open','san','el'].forEach(n=>{
     if(VIEWS[n].init) initCanvas(n);
   });
+  // 3D
+  if(curStep===4 && v3D){
+    const cv = document.getElementById('cv3D');
+    const wrap = document.getElementById('w3D');
+    if(cv && wrap){
+      const dpr = window.devicePixelRatio||1;
+      cv.width = wrap.clientWidth*dpr;
+      cv.height = wrap.clientHeight*dpr;
+      cv.style.width = wrap.clientWidth+'px';
+      cv.style.height = wrap.clientHeight+'px';
+    }
+  }
 });
 </script>
 </body>
