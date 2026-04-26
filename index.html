@@ -216,7 +216,7 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
   <div class="h-sub">Concevez votre salle de bain et visualisez les zones NF C 15-100 en réalité augmentée.</div>
   <button class="h-btn primary" onclick="enterApp()">✦ Nouveau projet</button>
   <button class="h-btn secondary" onclick="startAR()">📷 Voir en RA</button>
-  <div class="h-ver">v3.2 · clipping zones + ouvertures 3D</div>
+  <div class="h-ver">v3.3 · AR transparente + filaire</div>
 </div>
 
 <!-- APP -->
@@ -2442,14 +2442,15 @@ async function startAR(){
   arSes.addEventListener('select', arOnTap);
 
   // ⚠️ CRITIQUE pour la caméra :
-  // - alpha:false : WebXR gère le fond caméra, alpha:true rend le canvas transparent
-  // - depth:true et antialias optionnels
+  // alpha:true permet à la caméra de transparaître à travers les pixels non dessinés
+  // Sans clear du color buffer, on garde l'image caméra en fond
   arGL = cv.getContext('webgl', {
     xrCompatible: true,
-    alpha: false,
+    alpha: true,
     antialias: true,
     depth: true,
     stencil: false,
+    premultipliedAlpha: true,
     preserveDrawingBuffer: false
   });
   if(!arGL){
@@ -2542,10 +2543,13 @@ function arBuildGL(){
      uniform mat4 uMVP,uM;varying vec3 vC,vN;
      void main(){gl_Position=uMVP*vec4(aPos,1.);vN=normalize(vec3(uM*vec4(aNorm,0.)));vC=aCol;}`,
     `precision mediump float;varying vec3 vC,vN;uniform float uA;
-     void main(){vec3 L=normalize(vec3(.6,1.5,.8));float d=max(dot(vN,L),0.)*.65+.35;gl_FragColor=vec4(vC*d,uA);}`);
+     void main(){vec3 L=normalize(vec3(.6,1.5,.8));float d=max(dot(vN,L),0.)*.65+.35;
+       vec3 rgb=vC*d*uA;
+       gl_FragColor=vec4(rgb,uA);}`);
   arProgLine=mkP(gl,
     `attribute vec3 aPos;uniform mat4 uMVP;void main(){gl_Position=uMVP*vec4(aPos,1.);}`,
-    `precision mediump float;uniform vec4 uC;void main(){gl_FragColor=uC;}`);
+    `precision mediump float;uniform vec4 uC;
+     void main(){gl_FragColor=vec4(uC.rgb*uC.a, uC.a);}`);
   // Cube
   const s=0.5;
   const F=[
@@ -2614,9 +2618,12 @@ function arLoop(t,frame){
   const gl=arGL;
   const layer=arSes.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+  // Ne PAS effacer le color buffer (= caméra visible en fond via alpha:true)
   gl.clear(gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
-  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.enable(gl.BLEND);
+  // Pour premultipliedAlpha:true → blend correct
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
   const pose=frame.getViewerPose(arRef); if(!pose) return;
 
@@ -2653,7 +2660,9 @@ function arLoop(t,frame){
 
     if(!arAnchored) continue;
 
-    // Scène ancrée
+    // ══ SCÈNE ANCRÉE — UNIQUEMENT FILAIRE ══
+    // En AR avec alpha:false, les meshes solides apparaissent opaques
+    // → on dessine TOUT en lignes filaires
     let mnx=0,mxx=3,mny=0,mxy=2.4;
     if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
       mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
@@ -2664,40 +2673,150 @@ function arLoop(t,frame){
     const RH=SC.roomH||2.5, rW=(mxx-mnx)*sc, rD=(mxy-mny)*sc;
     const baseM=AM.mul(AM.T(arAnchorX,arAnchorY,arAnchorZ),AM.RY(arRotY));
     const wM=(lx,ly,lz)=>AM.mul(baseM,AM.T((lx-rcx)*sc,ly,-(lz-rcz)*sc));
-    const wMS=(lx,ly,lz,sx,sy,sz)=>AM.mul(wM(lx,ly,lz),AM.S(sx*sc,sy,sz*sc));
 
-    if(arLayers.walls){
-      // Carrelage filaire
-      const ts=0.40*sc;
-      for(let x=-rW/2;x<=rW/2;x+=ts){
-        arDL(proj,viewM,baseM,mkLD([x,0.008,-rD/2,x,0.008,rD/2]),0.55,0.80,1.0,0.45);
-      }
-      for(let z=-rD/2;z<=rD/2;z+=ts){
-        arDL(proj,viewM,baseM,mkLD([-rW/2,0.008,z,rW/2,0.008,z]),0.55,0.80,1.0,0.45);
-      }
-      // Arêtes verticales
-      const corners=[[-rW/2,-rD/2],[rW/2,-rD/2],[rW/2,rD/2],[-rW/2,rD/2]];
-      for(const [cx2,cz2] of corners){
-        arDL(proj,viewM,baseM,mkLD([cx2,0.01,cz2,cx2,RH,cz2]),0.65,0.85,1.0,0.92);
-      }
-      // Arêtes haut + bas
-      const edges=[
-        [-rW/2,RH,-rD/2,rW/2,RH,-rD/2],[rW/2,RH,-rD/2,rW/2,RH,rD/2],
-        [rW/2,RH,rD/2,-rW/2,RH,rD/2],[-rW/2,RH,rD/2,-rW/2,RH,-rD/2],
-        [-rW/2,0.01,-rD/2,rW/2,0.01,-rD/2],[rW/2,0.01,-rD/2,rW/2,0.01,rD/2],
-        [rW/2,0.01,rD/2,-rW/2,0.01,rD/2],[-rW/2,0.01,rD/2,-rW/2,0.01,-rD/2],
+    // Helper : dessine une boîte en filaire (12 arêtes)
+    const drawWireBox=(cx,cy,cz, w,h,d, r,g2,b,a)=>{
+      const hx=w/2, hy=h/2, hz=d/2;
+      const lines=[
+        // Bottom
+        cx-hx,cy-hy,cz-hz, cx+hx,cy-hy,cz-hz,
+        cx+hx,cy-hy,cz-hz, cx+hx,cy-hy,cz+hz,
+        cx+hx,cy-hy,cz+hz, cx-hx,cy-hy,cz+hz,
+        cx-hx,cy-hy,cz+hz, cx-hx,cy-hy,cz-hz,
+        // Top
+        cx-hx,cy+hy,cz-hz, cx+hx,cy+hy,cz-hz,
+        cx+hx,cy+hy,cz-hz, cx+hx,cy+hy,cz+hz,
+        cx+hx,cy+hy,cz+hz, cx-hx,cy+hy,cz+hz,
+        cx-hx,cy+hy,cz+hz, cx-hx,cy+hy,cz-hz,
+        // Verticals
+        cx-hx,cy-hy,cz-hz, cx-hx,cy+hy,cz-hz,
+        cx+hx,cy-hy,cz-hz, cx+hx,cy+hy,cz-hz,
+        cx+hx,cy-hy,cz+hz, cx+hx,cy+hy,cz+hz,
+        cx-hx,cy-hy,cz+hz, cx-hx,cy+hy,cz+hz,
       ];
-      for(const e of edges){
-        arDL(proj,viewM,baseM,mkLD(e),0.65,0.85,1.0,0.7);
+      arDL(proj,viewM,baseM,mkLD(lines),r,g2,b,a);
+    };
+
+    // ── PIÈCE FILAIRE ──
+    if(arLayers.walls){
+      // Sol : grille carrelage 40cm
+      const ts=0.40*sc;
+      for(let x=-rW/2;x<=rW/2+0.001;x+=ts){
+        arDL(proj,viewM,baseM,mkLD([x,0.005,-rD/2, x,0.005,rD/2]),0.5,0.75,1.0,0.5);
+      }
+      for(let z=-rD/2;z<=rD/2+0.001;z+=ts){
+        arDL(proj,viewM,baseM,mkLD([-rW/2,0.005,z, rW/2,0.005,z]),0.5,0.75,1.0,0.5);
+      }
+      // Cadre pièce (boîte filaire complète)
+      drawWireBox(0, RH/2, 0, rW, RH, rD, 0.65, 0.85, 1.0, 0.85);
+
+      // Ouvertures : trous dans les murs (arêtes du trou)
+      for(const op of SC.openings){
+        const w = SC.walls[op.wi]; if(!w) continue;
+        const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;
+        if(op.si>=pts.length-1) continue;
+        const a=pts[op.si], b=pts[op.si+1];
+        const sl=Math.hypot(b.x-a.x, b.y-a.y);
+        const hw=op.w/2/sl;
+        const t1=Math.max(0,op.t-hw), t2=Math.min(1,op.t+hw);
+        const p1={x: a.x+(b.x-a.x)*t1, y: a.y+(b.y-a.y)*t1};
+        const p2={x: a.x+(b.x-a.x)*t2, y: a.y+(b.y-a.y)*t2};
+        const cx2=(p1.x+p2.x)/2, cz2=(p1.y+p2.y)/2;
+        const ow=Math.hypot(p2.x-p1.x, p2.y-p1.y);
+        const oh=op.type==='window'?1.20:2.10;
+        const oy=op.type==='window'?1.10+oh/2:oh/2;
+        const angle=Math.atan2(p2.x-p1.x, p2.y-p1.y);
+        // Rectangle d'ouverture en filaire (couleur selon type)
+        const col=op.type==='window'?[0.4,0.8,1.0]:[1.0,0.7,0.3];
+        const localBase=AM.mul(AM.mul(baseM, AM.T((cx2-rcx)*sc, oy, -(cz2-rcz)*sc)), AM.RY(angle));
+        const hxw=ow*sc/2, hyw=oh/2;
+        const opLines=[
+          -hxw,-hyw,0, hxw,-hyw,0,
+           hxw,-hyw,0, hxw, hyw,0,
+           hxw, hyw,0,-hxw, hyw,0,
+          -hxw, hyw,0,-hxw,-hyw,0
+        ];
+        arDL(proj,viewM,localBase,mkLD(opLines),col[0],col[1],col[2],0.95);
       }
     }
 
-    // Sanitaires
+    // ── SANITAIRES (filaires) ──
     for(const s of SC.sanitaires){
       const c=CAT_SAN[s.type]; if(!c) continue;
       const h=c.h3||0.5;
-      arDM(proj,viewM,wMS(s.x,h/2,s.y,c.w,h,c.d),arGeo.cube,0.85);
-      arDL(proj,viewM,wMS(s.x,h/2,s.y,c.w+0.01,h+0.01,c.d+0.01),arGeo.ret,0.5,0.82,1,0.7);
+      const localCx=(s.x-rcx)*sc, localCz=-(s.y-rcz)*sc;
+      // Couleurs : eau = bleu, sec = gris
+      const col = c.water?[0.55,0.85,1.0]:[0.75,0.78,0.85];
+      drawWireBox(localCx, h/2, localCz, c.w*sc, h, c.d*sc, col[0], col[1], col[2], 0.9);
+      // X au sol pour repère
+      const halfW=c.w*sc/2, halfD=c.d*sc/2;
+      arDL(proj,viewM,baseM,mkLD([
+        localCx-halfW, 0.01, localCz-halfD, localCx+halfW, 0.01, localCz+halfD,
+        localCx+halfW, 0.01, localCz-halfD, localCx-halfW, 0.01, localCz+halfD,
+      ]),col[0],col[1],col[2],0.6);
+    }
+
+    // ── ZONES NF C 15-100 (avec clipping) ──
+    if(arLayers.zones){
+      const ZH=2.25;
+      const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
+      if(sanZ.length){
+        const roomPoly = SC.walls.length && SC.walls[0].closed ? SC.walls[0].pts : null;
+        const STEP = 0.20;
+        // Z1 = orange, Z2 = bleu — boîtes filaires par cellule
+        for(let mx=mnx; mx<mxx; mx+=STEP){
+          for(let mz=mny; mz<mxy; mz+=STEP){
+            const cx2 = mx + STEP/2, cz2 = mz + STEP/2;
+            if(roomPoly && !ptInPoly(cx2, cz2, roomPoly)) continue;
+            if(inSan(cx2, cz2)) continue;
+            const d = distToEdge(cx2, cz2);
+            let col=null;
+            if(d<=60)       col=[1.0,0.65,0.10];      // Z1 orange
+            else if(d<=120) col=[0.20,0.50,1.0];      // Z2 bleu
+            if(!col) continue;
+            const lcx=(cx2-rcx)*sc, lcz=-(cz2-rcz)*sc;
+            // Rectangle au sol (rond plat) pour marquer la zone
+            arDL(proj,viewM,baseM,mkLD([
+              lcx-STEP*sc/2, 0.012, lcz-STEP*sc/2, lcx+STEP*sc/2, 0.012, lcz-STEP*sc/2,
+              lcx+STEP*sc/2, 0.012, lcz-STEP*sc/2, lcx+STEP*sc/2, 0.012, lcz+STEP*sc/2,
+              lcx+STEP*sc/2, 0.012, lcz+STEP*sc/2, lcx-STEP*sc/2, 0.012, lcz+STEP*sc/2,
+              lcx-STEP*sc/2, 0.012, lcz+STEP*sc/2, lcx-STEP*sc/2, 0.012, lcz-STEP*sc/2,
+            ]),col[0],col[1],col[2],0.55);
+            // Pilier vertical jusqu'à 2.25m (1 ligne)
+            arDL(proj,viewM,baseM,mkLD([lcx,0.012,lcz, lcx,ZH,lcz]),col[0],col[1],col[2],0.25);
+          }
+        }
+        // Z0 : empreinte des sanitaires concernés
+        for(const s of sanZ){
+          const c=CAT_SAN[s.type];
+          const localCx=(s.x-rcx)*sc, localCz=-(s.y-rcz)*sc;
+          drawWireBox(localCx, (c.h3||.5)/2, localCz, c.w*sc, c.h3||.5, c.d*sc, 1.0, 0.25, 0.25, 1.0);
+        }
+        // Plafond Z=2.25m sur emprise pièce
+        arDL(proj,viewM,baseM,mkLD([
+          -rW/2, ZH, -rD/2,  rW/2, ZH, -rD/2,
+           rW/2, ZH, -rD/2,  rW/2, ZH,  rD/2,
+           rW/2, ZH,  rD/2, -rW/2, ZH,  rD/2,
+          -rW/2, ZH,  rD/2, -rW/2, ZH, -rD/2,
+        ]),1.0,0.65,0.10,0.6);
+      }
+    }
+
+    // ── ÉLECTRIQUE (filaires) ──
+    if(arLayers.elec){
+      for(const e of SC.electrique){
+        const c=CAT_EL[e.type]; if(!c) continue;
+        const errs=checkEl(e).errs;
+        const ok=errs.length===0;
+        const col = ok ? [0.20, 0.85, 0.40] : [1.0, 0.30, 0.30];
+        const localCx=(e.x-rcx)*sc, localCz=-(e.y-rcz)*sc;
+        // Petit cube filaire à hauteur e.h
+        drawWireBox(localCx, e.h, localCz, 0.10*sc, 0.06, 0.10*sc, col[0],col[1],col[2], 1.0);
+        // Tige verticale du sol jusqu'à l'élément
+        arDL(proj,viewM,baseM,mkLD([localCx, 0.01, localCz, localCx, e.h, localCz]),
+          col[0],col[1],col[2], ok?0.4:0.7);
+      }
+    }
       if(c.water && h>0.02){
         arDM(proj,viewM,wMS(s.x,h+0.005,s.y,c.w*0.88,0.005,c.d*0.88),arGeo.cube,0.5);
       }
