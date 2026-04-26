@@ -216,7 +216,7 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
   <div class="h-sub">Concevez votre salle de bain et visualisez les zones NF C 15-100 en réalité augmentée.</div>
   <button class="h-btn primary" onclick="enterApp()">✦ Nouveau projet</button>
   <button class="h-btn secondary" onclick="startAR()">📷 Voir en RA</button>
-  <div class="h-ver">v3.1 · vue 3D + rendus enrichis</div>
+  <div class="h-ver">v3.2 · clipping zones + ouvertures 3D</div>
 </div>
 
 <!-- APP -->
@@ -479,14 +479,17 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
 // ════════════════════════════════
 //  CATALOGUE
 // ════════════════════════════════
+// genZone = true → génère vraiment des volumes 0/1/2 (NF C 15-100 §701)
+// → uniquement baignoires, douches receveur, balnéo
+// Les lavabos/vasques/WC/bidets sont des sanitaires mais sans zones générées
 const CAT_SAN = {
-  baignoire: {label:'Baignoire',     ico:'🛁', w:1.70,d:.75, h3:.55, water:true, zR:{z1:.60,z2:1.20}},
-  douche_it: {label:'Douche ital.',  ico:'🚿', w:.90, d:.90, h3:.01, water:true, zR:{z1:.60,z2:1.20}},
-  lavabo:    {label:'Lavabo',        ico:'🪣', w:.60, d:.50, h3:.85, water:true, zR:{z1:.40,z2:.60}},
-  vasque:    {label:'Vasque',        ico:'🪣', w:.50, d:.45, h3:.85, water:true, zR:{z1:.40,z2:.60}},
-  wc:        {label:'WC',            ico:'🚽', w:.38, d:.65, h3:.78, water:false},
-  bidet:     {label:'Bidet',         ico:'🚽', w:.35, d:.55, h3:.40, water:false},
-  balneo:    {label:'Balnéo',        ico:'🛁', w:1.80,d:.90, h3:.55, water:true, zR:{z1:.60,z2:1.20}},
+  baignoire: {label:'Baignoire',     ico:'🛁', w:1.70,d:.75, h3:.55, water:true, genZone:true,  zR:{z1:.60,z2:1.20}},
+  douche_it: {label:'Douche ital.',  ico:'🚿', w:.90, d:.90, h3:.01, water:true, genZone:true,  zR:{z1:.60,z2:1.20}},
+  lavabo:    {label:'Lavabo',        ico:'🪣', w:.60, d:.50, h3:.85, water:true, genZone:false},
+  vasque:    {label:'Vasque',        ico:'🪣', w:.50, d:.45, h3:.85, water:true, genZone:false},
+  wc:        {label:'WC',            ico:'🚽', w:.38, d:.65, h3:.78, water:false,genZone:false},
+  bidet:     {label:'Bidet',         ico:'🚽', w:.35, d:.55, h3:.40, water:false,genZone:false},
+  balneo:    {label:'Balnéo',        ico:'🛁', w:1.80,d:.90, h3:.55, water:true, genZone:true,  zR:{z1:.60,z2:1.20}},
 };
 
 const CAT_EL = {
@@ -928,10 +931,74 @@ function delSan(id){
 // ════════════════════════════════
 //  STEP 3 : ÉLECTRIQUE
 // ════════════════════════════════
+
+// Test si le segment AB traverse un mur (extérieur du polygone pièce)
+// Les zones ne peuvent pas traverser un mur de la pièce
+function segIntersect(p1, p2, p3, p4){
+  const x1=p1.x, y1=p1.y, x2=p2.x, y2=p2.y, x3=p3.x, y3=p3.y, x4=p4.x, y4=p4.y;
+  const denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+  if(Math.abs(denom) < 1e-9) return false;
+  const t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / denom;
+  const u = -((x1-x2)*(y1-y3) - (y1-y2)*(x1-x3)) / denom;
+  return t > 1e-6 && t < 1-1e-6 && u > 1e-6 && u < 1-1e-6;
+}
+
+// Test si la ligne (sanX,sanY) → (px,py) traverse un mur entre l'intérieur de la pièce
+// Si oui, le point est "derrière le mur" → pas de zone
+function lineCrossesWall(ax, ay, px, py){
+  for(const w of SC.walls){
+    if(!w.closed || w.pts.length<3) continue;
+    const pts = [...w.pts, w.pts[0]];
+    for(let i=0;i<pts.length-1;i++){
+      // Une "ouverture" annule cette traversée (porte/fenêtre)
+      // On regarde s'il y a une ouverture sur ce segment
+      let openOnSeg = null;
+      for(const op of SC.openings){
+        if(op.wi !== SC.walls.indexOf(w)) continue;
+        if(op.si !== i) continue;
+        openOnSeg = op;
+        break;
+      }
+      const a = pts[i], b = pts[i+1];
+      if(!segIntersect({x:ax,y:ay}, {x:px,y:py}, a, b)) continue;
+      // S'il y a une ouverture, vérifier si l'intersection est dans la portion ouverte
+      if(openOnSeg){
+        // Calculer paramètre t le long de a→b à l'intersection
+        const dx = b.x-a.x, dy = b.y-a.y;
+        const len2 = dx*dx+dy*dy;
+        if(len2<1e-9) return true;
+        // Intersection point
+        const denom = (ax-px)*(a.y-b.y) - (ay-py)*(a.x-b.x);
+        if(Math.abs(denom)<1e-9) return true;
+        const u = -((ax-px)*(ay-a.y) - (ay-py)*(ax-a.x)) / denom;
+        // u = position le long de [a,b]
+        const sl = Math.sqrt(len2);
+        const hw = openOnSeg.w/2/sl;
+        const t1 = Math.max(0, openOnSeg.t-hw), t2 = Math.min(1, openOnSeg.t+hw);
+        // Si traverse dans la zone ouverte → pas un mur bloquant
+        if(u >= t1 && u <= t2){
+          // Pour les portes (oh=2.10) la zone passe (à hauteur du sol)
+          // Pour les fenêtres (allège 1.10m, hauteur 1.20m) la zone bloque
+          // jusqu'à 1.10m de hauteur — simplification : porte = passe, fenêtre = bloque
+          if(openOnSeg.type==='door' || openOnSeg.type==='wide'){
+            continue; // porte = passe
+          }
+          // Fenêtre = considéré comme bloquant pour zones (au sol)
+          return true;
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 function distToEdge(px,py){
   let m=Infinity;
   for(const s of SC.sanitaires){
-    const c=CAT_SAN[s.type]; if(!c?.water) continue;
+    const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
+    // Bloqué par un mur ? → ignorer
+    if(lineCrossesWall(s.x, s.y, px, py)) continue;
     const cx=Math.max(s.x-c.w/2, Math.min(s.x+c.w/2, px));
     const cy=Math.max(s.y-c.d/2, Math.min(s.y+c.d/2, py));
     m=Math.min(m, Math.hypot(px-cx, py-cy)*100);
@@ -941,7 +1008,7 @@ function distToEdge(px,py){
 
 function inSan(px,py){
   for(const s of SC.sanitaires){
-    const c=CAT_SAN[s.type]; if(!c?.water) continue;
+    const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
     if(px>=s.x-c.w/2 && px<=s.x+c.w/2 && py>=s.y-c.d/2 && py<=s.y+c.d/2) return true;
   }
   return false;
@@ -1219,31 +1286,65 @@ function drawOpenings(ctx, v){
 }
 
 function drawZones(ctx, v){
-  for(const s of SC.sanitaires){
-    const c=CAT_SAN[s.type]; if(!c?.water||!c.zR) continue;
-    const {z1:r1, z2:r2}=c.zR;
-    const cx=s.x, cy=s.y;
-    [
-      [r2, 'rgba(37,99,235,.06)', 'rgba(37,99,235,.30)', 'Z2'],
-      [r1, 'rgba(245,158,11,.10)', 'rgba(245,158,11,.40)', 'Z1'],
-      [0,  'rgba(220,38,38,.14)', 'rgba(220,38,38,.55)', 'Z0'],
-    ].forEach(([r, fill, stk, lbl])=>{
-      const x1=(cx-c.w/2-r)*v.sc + v.px;
-      const y1=(cy-c.d/2-r)*v.sc + v.py;
-      const w=(c.w+2*r)*v.sc;
-      const h=(c.d+2*r)*v.sc;
-      ctx.fillStyle=fill;
-      ctx.fillRect(x1,y1,w,h);
-      ctx.strokeStyle=stk;
-      ctx.lineWidth=r===0?1.2:1;
-      ctx.setLineDash(r===0?[]:[4,3]);
-      ctx.strokeRect(x1,y1,w,h);
-      ctx.setLineDash([]);
-      ctx.fillStyle=stk;
-      ctx.font='bold 8px ui-monospace,monospace';
-      ctx.textAlign='left';
-      ctx.fillText(lbl, x1+3, y1+10);
-    });
+  // Zones uniquement pour baignoire/douche/balnéo
+  // Calcul réel par échantillonnage pour respecter le clipping par les murs
+  const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
+  if(!sanZ.length) return;
+
+  // Trouver bbox de la pièce
+  let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+  if(SC.walls.length){
+    for(const w of SC.walls) for(const p of w.pts){
+      mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
+      mny=Math.min(mny,p.y); mxy=Math.max(mxy,p.y);
+    }
+  } else { mnx=0;mxx=3;mny=0;mxy=2.4; }
+
+  // Pas dynamique selon zoom — taille pixel ≈ 4-6px
+  const STEP = Math.max(0.04, Math.min(0.10, 5/v.sc));
+  const cellPx = STEP * v.sc;
+
+  const roomPoly = SC.walls.length && SC.walls[0].closed ? SC.walls[0].pts : null;
+
+  // 3 passes : Z2, Z1, Z0 (du plus grand au plus petit)
+  const passes = [
+    {max:120, fill:'rgba(37,99,235,.15)',  stk:'rgba(37,99,235,.5)',  lbl:'Z2'},
+    {max: 60, fill:'rgba(245,158,11,.18)', stk:'rgba(245,158,11,.6)', lbl:'Z1'},
+    {max:  0, fill:'rgba(220,38,38,.25)',  stk:'rgba(220,38,38,.7)',  lbl:'Z0'},
+  ];
+
+  for(const pass of passes){
+    ctx.fillStyle = pass.fill;
+    for(let mx=mnx; mx<=mxx; mx+=STEP){
+      for(let my=mny; my<=mxy; my+=STEP){
+        // Test pièce
+        if(roomPoly && !ptInPoly(mx, my, roomPoly)) continue;
+        let zoneOK = false;
+        if(pass.max === 0){
+          if(inSan(mx, my)) zoneOK = true;
+        } else if(pass.max === 60){
+          if(!inSan(mx, my) && distToEdge(mx, my) <= 60) zoneOK = true;
+        } else {
+          if(!inSan(mx, my)){
+            const d = distToEdge(mx, my);
+            if(d > 60 && d <= 120) zoneOK = true;
+          }
+        }
+        if(!zoneOK) continue;
+        const sp = mToScreen(mx, my, v);
+        ctx.fillRect(sp.x - cellPx/2, sp.y - cellPx/2, cellPx + 0.5, cellPx + 0.5);
+      }
+    }
+  }
+
+  // Labels au centre de chaque sanitaire avec zone
+  for(const s of sanZ){
+    const c = CAT_SAN[s.type];
+    const sp = mToScreen(s.x, s.y - c.d/2 - 0.05, v);
+    ctx.fillStyle = 'rgba(220,38,38,.9)';
+    ctx.font = 'bold 9px ui-monospace,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Z0/Z1/Z2', sp.x, sp.y);
   }
 }
 
@@ -1597,9 +1698,9 @@ function calcVols(){
     }
   }
   let z0H=0.5;
-  const water=SC.sanitaires.filter(s=>CAT_SAN[s.type]?.water);
-  if(water.length){
-    z0H = water.reduce((a,s)=>a+(CAT_SAN[s.type].h3||.5),0)/water.length;
+  const genZ=SC.sanitaires.filter(s=>CAT_SAN[s.type]?.genZone);
+  if(genZ.length){
+    z0H = genZ.reduce((a,s)=>a+(CAT_SAN[s.type].h3||.5),0)/genZ.length;
   }
   const z0v=z0pts*cell*z0H;
   const z1v=z1pts*cell*Math.min(H,ZH);
@@ -2033,17 +2134,23 @@ function loop3D(){
     }
   }
 
-  // ── MURS ──
+  // ── MURS avec ouvertures découpées ──
   if(v3DLayers.room && SC.walls.length){
-    const wt = 0.04;
-    // Mur nord (y=mny)
-    drawWall3D(proj, view, mnx, mxx, mny, wt, RH, [0.30, 0.42, 0.60], 'NS');
-    // Mur sud
-    drawWall3D(proj, view, mnx, mxx, mxy, wt, RH, [0.30, 0.42, 0.60], 'NS');
-    // Mur ouest (x=mnx)
-    drawWall3D(proj, view, mny, mxy, mnx, wt, RH, [0.32, 0.45, 0.62], 'EW');
-    // Mur est
-    drawWall3D(proj, view, mny, mxy, mxx, wt, RH, [0.32, 0.45, 0.62], 'EW');
+    const wt = 0.06; // épaisseur mur
+    // Pour chaque mur (segment), on calcule les ouvertures dessus et on dessine en morceaux
+    for(let wi=0; wi<SC.walls.length; wi++){
+      const w = SC.walls[wi];
+      if(!w.closed || w.pts.length<2) continue;
+      const pts = [...w.pts, w.pts[0]];
+      for(let si=0; si<pts.length-1; si++){
+        const a = pts[si], b = pts[si+1];
+        // Ouvertures sur ce segment
+        const opsHere = SC.openings
+          .filter(op => op.wi===wi && op.si===si)
+          .map(op => ({...op}));
+        drawWallSegment(proj, view, a, b, RH, wt, opsHere);
+      }
+    }
 
     // Plafond (si non coupé)
     if(ceilingVisible){
@@ -2052,14 +2159,11 @@ function loop3D(){
     }
 
     // Arêtes de la pièce
-    const corners = [
-      [mnx,mny],[mxx,mny],[mxx,mxy],[mnx,mxy]
-    ];
+    const corners = [[mnx,mny],[mxx,mny],[mxx,mxy],[mnx,mxy]];
     const edgeLines = [];
     for(const [x,z] of corners){
       edgeLines.push(x,0.02,z, x,RH-0.01,z);
     }
-    // Haut
     for(let i=0;i<4;i++){
       const a=corners[i], b=corners[(i+1)%4];
       edgeLines.push(a[0],RH-0.01,a[1], b[0],RH-0.01,b[1]);
@@ -2100,47 +2204,46 @@ function loop3D(){
     }
   }
 
-  // ── ZONES NF C 15-100 ──
+  // ── ZONES NF C 15-100 (avec clipping par les murs) ──
   if(v3DLayers.zones){
     const ZH = 2.25;
-    for(const s of SC.sanitaires){
-      const c = CAT_SAN[s.type];
-      if(!c?.water || !c.zR) continue;
-      const {z1:r1, z2:r2} = c.zR;
-      // Z2 (bleu, plus large)
-      const z2m = M3.mul(M3.T(s.x, ZH/2, s.y), M3.S(c.w+2*r2, ZH, c.d+2*r2));
-      draw3DBox(proj, view, z2m, [0.15, 0.40, 0.85], 0.10);
-      // Z1 (orange)
-      const z1m = M3.mul(M3.T(s.x, ZH/2, s.y), M3.S(c.w+2*r1, ZH, c.d+2*r1));
-      draw3DBox(proj, view, z1m, [0.95, 0.60, 0.10], 0.13);
-      // Z0 (rouge, dans l'empreinte)
-      const z0m = M3.mul(M3.T(s.x, (c.h3||0.5)/2, s.y), M3.S(c.w, c.h3||0.5, c.d));
-      draw3DBox(proj, view, z0m, [0.85, 0.20, 0.20], 0.20);
-
-      // Arêtes des zones
-      const drawZoneEdges = (cx, cy, cz, sx, sy, sz, col)=>{
-        const hx=sx/2, hy=sy/2, hz=sz/2;
-        const lines = [
-          // Bottom rectangle
-          cx-hx,cy-hy,cz-hz, cx+hx,cy-hy,cz-hz,
-          cx+hx,cy-hy,cz-hz, cx+hx,cy-hy,cz+hz,
-          cx+hx,cy-hy,cz+hz, cx-hx,cy-hy,cz+hz,
-          cx-hx,cy-hy,cz+hz, cx-hx,cy-hy,cz-hz,
-          // Top
-          cx-hx,cy+hy,cz-hz, cx+hx,cy+hy,cz-hz,
-          cx+hx,cy+hy,cz-hz, cx+hx,cy+hy,cz+hz,
-          cx+hx,cy+hy,cz+hz, cx-hx,cy+hy,cz+hz,
-          cx-hx,cy+hy,cz+hz, cx-hx,cy+hy,cz-hz,
-          // Vertical
-          cx-hx,cy-hy,cz-hz, cx-hx,cy+hy,cz-hz,
-          cx+hx,cy-hy,cz-hz, cx+hx,cy+hy,cz-hz,
-          cx+hx,cy-hy,cz+hz, cx+hx,cy+hy,cz+hz,
-          cx-hx,cy-hy,cz+hz, cx-hx,cy+hy,cz+hz,
-        ];
-        draw3DLines(proj, view, M3.id(), lines, col);
-      };
-      drawZoneEdges(s.x, ZH/2, s.y, c.w+2*r2, ZH, c.d+2*r2, [0.20, 0.55, 1.0, 0.4]);
-      drawZoneEdges(s.x, ZH/2, s.y, c.w+2*r1, ZH, c.d+2*r1, [1.0, 0.65, 0.10, 0.5]);
+    const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
+    if(sanZ.length){
+      const roomPoly = SC.walls.length && SC.walls[0].closed ? SC.walls[0].pts : null;
+      const STEP = 0.20; // pas + grossier en 3D pour les perfs
+      // On dessine 1 boîte par cellule pour respecter le clipping
+      for(let mx=mnx; mx<mxx; mx+=STEP){
+        for(let mz=mny; mz<mxy; mz+=STEP){
+          const cx = mx + STEP/2, cz = mz + STEP/2;
+          if(roomPoly && !ptInPoly(cx, cz, roomPoly)) continue;
+          let zone = null;
+          if(inSan(cx, cz)) zone = 0;
+          else {
+            const d = distToEdge(cx, cz);
+            if(d <= 60)       zone = 1;
+            else if(d <= 120) zone = 2;
+          }
+          if(zone === null) continue;
+          if(zone === 0){
+            // Z0 : dans l'emprise, hauteur du sanitaire
+            // Trouver hauteur du sanitaire concerné
+            let h0 = 0.5;
+            for(const s of sanZ){
+              const c = CAT_SAN[s.type];
+              if(cx>=s.x-c.w/2 && cx<=s.x+c.w/2 && cz>=s.y-c.d/2 && cz<=s.y+c.d/2){
+                h0 = c.h3 || 0.5;
+                break;
+              }
+            }
+            // Pas besoin de redessiner Z0 ici, le sanitaire couvre déjà
+          } else {
+            // Z1 ou Z2 : volume jusqu'à H=2.25m, clippé sol-plafond
+            const m = M3.mul(M3.T(cx, ZH/2, cz), M3.S(STEP, ZH, STEP));
+            const col = zone === 1 ? [0.95, 0.55, 0.05] : [0.20, 0.45, 0.95];
+            draw3DBox(proj, view, m, col, 0.10);
+          }
+        }
+      }
     }
   }
 
@@ -2165,28 +2268,7 @@ function loop3D(){
     }
   }
 
-  // ── OUVERTURES (rectangles dans les murs) ──
-  if(v3DLayers.room){
-    for(const op of SC.openings){
-      const w = SC.walls[op.wi]; if(!w) continue;
-      const pts = w.closed?[...w.pts,w.pts[0]]:w.pts;
-      if(op.si >= pts.length-1) continue;
-      const a = pts[op.si], b = pts[op.si+1];
-      const sl = Math.hypot(b.x-a.x, b.y-a.y);
-      const hw = op.w/2/sl;
-      const t1 = Math.max(0, op.t-hw), t2 = Math.min(1, op.t+hw);
-      const p1 = {x: a.x+(b.x-a.x)*t1, y: a.y+(b.y-a.y)*t1};
-      const p2 = {x: a.x+(b.x-a.x)*t2, y: a.y+(b.y-a.y)*t2};
-      const cx = (p1.x+p2.x)/2, cz = (p1.y+p2.y)/2;
-      const ow = Math.hypot(p2.x-p1.x, p2.y-p1.y);
-      const oh = op.type==='window' ? 1.20 : 2.10;
-      const oy = op.type==='window' ? 1.10 : oh/2;
-      // Rectangle "trou" — boîte semi-transparente
-      const angle = Math.atan2(p2.x-p1.x, p2.y-p1.y);
-      const m = M3.mul(M3.mul(M3.T(cx, oy, cz), M3.RY(angle)), M3.S(ow, oh, 0.08));
-      draw3DBox(proj, view, m, op.type==='window'?[0.4,0.7,0.95]:[0.6,0.4,0.2], 0.65);
-    }
-  }
+  // (Les ouvertures sont déjà rendues dans le rendu des murs via drawWallSegment)
 
   // Update info
   document.getElementById('info3D').innerHTML =
@@ -2195,18 +2277,113 @@ function loop3D(){
     `<b>${SC.sanitaires.length}</b> san · <b>${SC.electrique.length}</b> él`;
 }
 
-function drawWall3D(proj, view, lo, hi, fix, thickness, height, col, axis){
-  const len = hi - lo;
-  const mid = (lo+hi)/2;
-  let m;
-  if(axis==='NS'){
-    // mur le long de l'axe X, fix = z
-    m = M3.mul(M3.T(mid, height/2, fix), M3.S(len, height, thickness));
-  } else {
-    // mur le long de l'axe Z, fix = x
-    m = M3.mul(M3.T(fix, height/2, mid), M3.S(thickness, height, len));
+// Rendu d'un segment de mur avec ses ouvertures découpées
+// a, b = points du segment au sol (mètres)
+// height = hauteur pièce
+// thickness = épaisseur mur
+// ops = liste d'ouvertures sur ce segment {type, t, w}
+function drawWallSegment(proj, view, a, b, height, thickness, ops){
+  const dx = b.x - a.x, dz = b.y - a.y;
+  const segLen = Math.hypot(dx, dz);
+  if(segLen < 0.01) return;
+  const angle = Math.atan2(dx, dz); // rotation Y du mur
+  const cx = (a.x + b.x) / 2;
+  const cz = (a.y + b.y) / 2;
+
+  // Couleur mur
+  const wallCol = [0.50, 0.55, 0.62];
+
+  // Trier ouvertures par t croissant
+  const sortedOps = [...ops].sort((p,q) => p.t - q.t);
+
+  // Construire la liste des "segments pleins" en t [0,1]
+  // chaque ouverture occupe [t-w/2/segLen, t+w/2/segLen]
+  let cuts = []; // intervalles [start, end] en t, vides
+  for(const op of sortedOps){
+    const hw = op.w / 2 / segLen;
+    cuts.push({s: Math.max(0, op.t-hw), e: Math.min(1, op.t+hw), op});
   }
-  draw3DBox(proj, view, m, col, 0.95);
+
+  // Position des "blocs pleins"
+  // 1. Sous l'ouverture (allège fenêtre)
+  // 2. Au-dessus de l'ouverture (linteau)
+  // 3. Plein mur entre les ouvertures et aux extrémités
+
+  // Pour chaque cut, on dessine :
+  // - allège (sous) : si fenêtre — hauteur 0 → 1.10m
+  // - linteau (haut) : porte → 2.10m → height ;  fenêtre → 2.30m → height
+  // Mais d'abord on dessine les sections pleines entre les ouvertures
+
+  // Calcul des sections pleines en t
+  let pleins = [];
+  let cursor = 0;
+  for(const cut of cuts){
+    if(cut.s > cursor){
+      pleins.push({s: cursor, e: cut.s});
+    }
+    cursor = Math.max(cursor, cut.e);
+  }
+  if(cursor < 1) pleins.push({s: cursor, e: 1});
+
+  // Helper pour dessiner un bloc rectangulaire orienté le long du segment
+  function drawBlock(t1, t2, y, h, col, alpha){
+    const len = (t2 - t1) * segLen;
+    if(len <= 0.001) return;
+    const tMid = (t1 + t2) / 2;
+    const px = a.x + dx * tMid;
+    const pz = a.y + dz * tMid;
+    const m = M3.mul(M3.mul(M3.T(px, y + h/2, pz), M3.RY(angle)), M3.S(thickness, h, len));
+    draw3DBox(proj, view, m, col, alpha);
+  }
+
+  // 1. Sections pleines (toute la hauteur)
+  for(const p of pleins){
+    drawBlock(p.s, p.e, 0, height, wallCol, 0.95);
+  }
+
+  // 2. Au-dessus de chaque ouverture (linteau jusqu'au plafond)
+  for(const cut of cuts){
+    const op = cut.op;
+    const oh = (op.type === 'door' || op.type === 'wide') ? 2.10 : 2.30;
+    if(oh < height){
+      drawBlock(cut.s, cut.e, oh, height - oh, wallCol, 0.95);
+    }
+  }
+
+  // 3. Sous chaque fenêtre (allège 0 → 1.10m)
+  for(const cut of cuts){
+    const op = cut.op;
+    if(op.type === 'window'){
+      drawBlock(cut.s, cut.e, 0, 1.10, wallCol, 0.95);
+    }
+  }
+
+  // 4. Indicateurs visuels des ouvertures
+  for(const cut of cuts){
+    const op = cut.op;
+    const len = (cut.e - cut.s) * segLen;
+    if(len <= 0) continue;
+    const tMid = (cut.s + cut.e) / 2;
+    const px = a.x + dx * tMid;
+    const pz = a.y + dz * tMid;
+    if(op.type === 'window'){
+      // Vitrage bleuté entre 1.10m et 2.30m
+      const m = M3.mul(M3.mul(M3.T(px, 1.10 + 1.20/2, pz), M3.RY(angle)), M3.S(thickness*0.5, 1.20, len*0.95));
+      draw3DBox(proj, view, m, [0.40, 0.70, 0.95], 0.55);
+      // Cadre fenêtre
+      const fr1 = M3.mul(M3.mul(M3.T(px, 1.10, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.04, len));
+      draw3DBox(proj, view, fr1, [0.85, 0.85, 0.90], 1.0);
+      const fr2 = M3.mul(M3.mul(M3.T(px, 2.30, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.04, len));
+      draw3DBox(proj, view, fr2, [0.85, 0.85, 0.90], 1.0);
+    } else {
+      // Porte : encadrement + repère au sol
+      const seuilM = M3.mul(M3.mul(M3.T(px, 0.01, pz), M3.RY(angle)), M3.S(thickness*1.2, 0.02, len));
+      draw3DBox(proj, view, seuilM, [0.55, 0.40, 0.20], 1.0);
+      const lintCol = [0.65, 0.55, 0.40];
+      const lintM = M3.mul(M3.mul(M3.T(px, 2.10, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.06, len));
+      draw3DBox(proj, view, lintM, lintCol, 1.0);
+    }
+  }
 }
 
 
@@ -2234,8 +2411,12 @@ async function startAR(){
   document.getElementById('scrAR').style.display='block';
   arSetSt('Ouverture caméra…','scan');
 
+  // Dimensionner le canvas AVANT toute init WebGL
   const cv=document.getElementById('arCanvas');
-  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  cv.width  = window.innerWidth;
+  cv.height = window.innerHeight;
+  cv.style.width  = window.innerWidth  + 'px';
+  cv.style.height = window.innerHeight + 'px';
 
   try{
     arSes=await navigator.xr.requestSession('immersive-ar',{
@@ -2260,11 +2441,32 @@ async function startAR(){
   });
   arSes.addEventListener('select', arOnTap);
 
-  arGL=cv.getContext('webgl',{xrCompatible:true, alpha:false, antialias:true});
+  // ⚠️ CRITIQUE pour la caméra :
+  // - alpha:false : WebXR gère le fond caméra, alpha:true rend le canvas transparent
+  // - depth:true et antialias optionnels
+  arGL = cv.getContext('webgl', {
+    xrCompatible: true,
+    alpha: false,
+    antialias: true,
+    depth: true,
+    stencil: false,
+    preserveDrawingBuffer: false
+  });
+  if(!arGL){
+    alert('WebGL non disponible');
+    document.getElementById('scrAR').style.display='none';
+    document.getElementById('app').style.display='flex';
+    return;
+  }
   await arGL.makeXRCompatible();
+
+  const baseLayer = new XRWebGLLayer(arSes, arGL, {
+    framebufferScaleFactor: 1.0
+  });
   arSes.updateRenderState({
-    baseLayer:new XRWebGLLayer(arSes,arGL,{framebufferScaleFactor:1.0}),
-    depthNear:0.05, depthFar:100.0
+    baseLayer,
+    depthNear: 0.05,
+    depthFar:  50.0
   });
 
   try{ arRef=await arSes.requestReferenceSpace('local-floor'); }
@@ -2501,20 +2703,34 @@ function arLoop(t,frame){
       }
     }
 
-    // Zones
+    // Zones (avec clipping par les murs)
     if(arLayers.zones){
       const ZH=2.25;
-      for(const s of SC.sanitaires){
-        const c=CAT_SAN[s.type]; if(!c?.water||!c.zR) continue;
-        const {z1:r1,z2:r2}=c.zR;
-        // Z2
-        arDM(proj,viewM,wMS(s.x,ZH/2,s.y,c.w+2*r2,ZH,c.d+2*r2),arGeo.cube,0.07);
-        arDL(proj,viewM,wMS(s.x,ZH/2,s.y,c.w+2*r2+.01,ZH,c.d+2*r2+.01),arGeo.ret,0.22,0.52,1,0.45);
-        // Z1
-        arDM(proj,viewM,wMS(s.x,ZH/2,s.y,c.w+2*r1,ZH,c.d+2*r1),arGeo.cube,0.10);
-        arDL(proj,viewM,wMS(s.x,ZH/2,s.y,c.w+2*r1+.01,ZH,c.d+2*r1+.01),arGeo.ret,1,0.62,0.1,0.5);
-        // Z0
-        arDM(proj,viewM,wMS(s.x,(c.h3||.5)/2,s.y,c.w,c.h3||.5,c.d),arGeo.cube,0.13);
+      const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
+      if(sanZ.length){
+        const roomPoly = SC.walls.length && SC.walls[0].closed ? SC.walls[0].pts : null;
+        const STEP = 0.20;
+        for(let mx=mnx; mx<mxx; mx+=STEP){
+          for(let mz=mny; mz<mxy; mz+=STEP){
+            const cx2 = mx + STEP/2, cz2 = mz + STEP/2;
+            if(roomPoly && !ptInPoly(cx2, cz2, roomPoly)) continue;
+            let zone = null;
+            if(inSan(cx2, cz2)) zone = 0;
+            else {
+              const d = distToEdge(cx2, cz2);
+              if(d <= 60)       zone = 1;
+              else if(d <= 120) zone = 2;
+            }
+            if(zone === null || zone === 0) continue;
+            // Z1/Z2 : volume jusqu'à H=2.25m
+            arDM(proj, viewM, wMS(cx2, ZH/2, cz2, STEP, ZH, STEP), arGeo.cube, 0.10);
+          }
+        }
+        // Z0 = empreintes des sanitaires concernés
+        for(const s of sanZ){
+          const c=CAT_SAN[s.type];
+          arDM(proj,viewM,wMS(s.x,(c.h3||.5)/2,s.y,c.w,c.h3||.5,c.d),arGeo.cube,0.18);
+        }
       }
     }
 
