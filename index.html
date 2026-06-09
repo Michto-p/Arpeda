@@ -239,7 +239,7 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
   <div class="h-sub">Concevez votre salle de bain et visualisez les zones NF C 15-100 en réalité augmentée.</div>
   <button class="h-btn primary" onclick="enterApp()">✦ Nouveau projet</button>
   <button class="h-btn secondary" onclick="startAR()">📷 Voir en RA</button>
-  <div class="h-ver">v4.0 · rotation + AR settings</div>
+  <div class="h-ver">v4.4 · modale sandbox-safe</div>
 </div>
 
 <!-- APP -->
@@ -284,7 +284,7 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
             <span class="tool-i">⬜</span><span class="tool-t">Rect.</span>
           </button>
           <button class="tool" id="tPan" onclick="setTool('pan')">
-            <span class="tool-i">✋</span><span class="tool-t">Déplacer</span>
+            <span class="tool-i">✋</span><span class="tool-t">Sélect.</span>
           </button>
           <button class="tool" onclick="undo()">
             <span class="tool-i">↶</span><span class="tool-t">Annuler</span>
@@ -297,6 +297,16 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
           <button class="nav-btn prev" disabled style="opacity:.3">← Retour</button>
           <button class="nav-btn next" onclick="goStep(1)">Ouvertures →</button>
         </div>
+      </div>
+      <!-- Prop sheet mur sélectionné -->
+      <div class="prop-sheet" id="psWall">
+        <div class="ps-grip"></div>
+        <div class="ps-head">
+          <span class="ps-icon">🧱</span>
+          <span class="ps-title" id="psWallTitle">Mur</span>
+          <button class="ps-close" onclick="closePS('wall')">✕</button>
+        </div>
+        <div class="ps-body" id="psWallBody"></div>
       </div>
     </div>
 
@@ -332,13 +342,22 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
           <button class="nav-btn next" onclick="goStep(2)">Sanitaires →</button>
         </div>
       </div>
+      <div class="prop-sheet" id="psOp">
+        <div class="ps-grip"></div>
+        <div class="ps-head">
+          <span class="ps-icon" id="psOpIco">🚪</span>
+          <span class="ps-title" id="psOpTitle">—</span>
+          <button class="ps-close" onclick="closePS('op')">✕</button>
+        </div>
+        <div class="ps-body" id="psOpBody"></div>
+      </div>
     </div>
 
     <!-- ── STEP 2 : SANITAIRES ── -->
     <div class="screen off" id="s2">
       <div class="cv-wrap" id="wSan">
         <canvas id="cvSan" class="main"></canvas>
-        <div class="hint" id="hintSan">Tap sur un type ci-dessous · Glissez pour déplacer</div>
+        <div class="hint" id="hintSan">Tap = sélection · Glissez = déplacer · Pommeau ⊕ = déplaçable</div>
         <div class="fi-info" id="infoSan">—</div>
         <div class="zoom-ctl">
           <button class="zoom-btn" onclick="zoom('san',1.25)">+</button>
@@ -516,8 +535,33 @@ canvas.main{display:block;width:100%;height:100%;touch-action:none}
   </div>
 </div>
 
+<!-- MODALE DE CONFIRMATION (remplace confirm() — compatible iframe sandbox) -->
+<div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:20px">
+  <div style="background:var(--sur);border:1px solid var(--bor);border-radius:14px;padding:18px;max-width:340px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div id="modalMsg" style="font-size:.85rem;line-height:1.5;color:var(--txt);margin-bottom:16px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="modalResolve(false)" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--bor);background:var(--bor2);color:var(--txt2);font-weight:700;font-size:.78rem;cursor:pointer">Annuler</button>
+      <button id="modalOk" onclick="modalResolve(true)" style="flex:1;padding:11px;border-radius:9px;border:none;background:var(--er);color:#fff;font-weight:700;font-size:.78rem;cursor:pointer">Confirmer</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
+
+// Modale de confirmation (remplace confirm() pour compatibilité iframe sandbox)
+let _modalCb = null;
+function askConfirm(msg){
+  return new Promise(resolve=>{
+    document.getElementById('modalMsg').textContent = msg;
+    document.getElementById('modal').style.display = 'flex';
+    _modalCb = resolve;
+  });
+}
+function modalResolve(ok){
+  document.getElementById('modal').style.display = 'none';
+  if(_modalCb){ _modalCb(ok); _modalCb = null; }
+}
 
 // ════════════════════════════════
 //  CATALOGUE
@@ -552,9 +596,255 @@ const STEP_TITLES = ['Tracer les murs','Portes & fenêtres','Sanitaires','Appare
 // ════════════════════════════════
 //  ÉTAT
 // ════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+//  MATÉRIAUX (couches)
+//  Chaque matériau a : couleur, densité, isolation, conductivité
+//  Tout est paramétrique pour formation/devis
+// ════════════════════════════════════════════════════════════════
+const MAT_LIB = {
+  // STRUCTURE
+  brique:        {label:'Brique creuse',     col:[0.72,0.42,0.30], type:'struct',   r:0.85, U:0.75},
+  brique_pleine: {label:'Brique pleine',     col:[0.65,0.32,0.22], type:'struct',   r:0.30, U:1.50},
+  parpaing:      {label:'Parpaing 20',       col:[0.70,0.70,0.72], type:'struct',   r:0.20, U:2.20},
+  beton:         {label:'Béton',             col:[0.75,0.75,0.78], type:'struct',   r:0.10, U:2.50},
+  beton_cell:    {label:'Béton cellulaire',  col:[0.92,0.92,0.88], type:'struct',   r:1.20, U:0.45},
+  pierre:        {label:'Pierre',            col:[0.78,0.72,0.62], type:'struct',   r:0.15, U:2.00},
+  ossature_bois: {label:'Ossature bois',     col:[0.55,0.40,0.25], type:'struct',   r:0.80, U:0.40},
+  // ISOLATION
+  laine_verre:   {label:'Laine de verre',    col:[0.95,0.92,0.55], type:'iso',      r:2.50, U:0},
+  laine_roche:   {label:'Laine de roche',    col:[0.65,0.70,0.55], type:'iso',      r:2.85, U:0},
+  polystyrene:   {label:'Polystyrène',       col:[0.95,0.95,0.92], type:'iso',      r:3.00, U:0},
+  pse_graph:     {label:'PSE graphité',      col:[0.30,0.30,0.32], type:'iso',      r:3.50, U:0},
+  ouate_cell:    {label:'Ouate cellulose',   col:[0.85,0.78,0.62], type:'iso',      r:2.70, U:0},
+  // PAREMENT
+  ba13:          {label:'BA13 (placo)',      col:[0.95,0.95,0.96], type:'parement', r:0.05, U:0.25},
+  ba18:          {label:'BA18',              col:[0.95,0.95,0.96], type:'parement', r:0.07, U:0.25},
+  fermacell:     {label:'Fermacell',         col:[0.88,0.85,0.78], type:'parement', r:0.07, U:0.25},
+  enduit_ext:    {label:'Enduit ext.',       col:[0.92,0.88,0.78], type:'finition', r:0.02, U:1.00},
+  enduit_int:    {label:'Enduit int.',       col:[0.96,0.96,0.98], type:'finition', r:0.02, U:1.00},
+  carrelage:     {label:'Carrelage',         col:[0.92,0.93,0.95], type:'finition', r:0.02, U:1.30},
+  faience:       {label:'Faïence',           col:[0.18,0.34,0.50], type:'finition', r:0.02, U:1.30},
+  parquet:       {label:'Parquet',           col:[0.62,0.42,0.25], type:'finition', r:0.10, U:0.18},
+  bardage_bois:  {label:'Bardage bois',      col:[0.55,0.38,0.22], type:'finition', r:0.15, U:0.18},
+  // VITRAGE & MENUISERIE
+  alu:           {label:'Aluminium',         col:[0.80,0.82,0.85], type:'menuiserie',r:0,    U:5.90},
+  alu_rt:        {label:'Alu rupt. pont',    col:[0.78,0.80,0.85], type:'menuiserie',r:0.20, U:1.80},
+  pvc:           {label:'PVC',               col:[0.94,0.94,0.96], type:'menuiserie',r:0.30, U:1.40},
+  bois:          {label:'Bois',              col:[0.55,0.38,0.22], type:'menuiserie',r:0.45, U:1.20},
+  vitrage_simple:{label:'Vitrage simple',    col:[0.55,0.75,0.92], type:'vitrage',  r:0,    U:5.80},
+  vitrage_double:{label:'Double vitrage',    col:[0.50,0.72,0.92], type:'vitrage',  r:0.40, U:1.40},
+  vitrage_triple:{label:'Triple vitrage',    col:[0.48,0.70,0.92], type:'vitrage',  r:0.65, U:0.80},
+};
+
+// COMPOSITIONS PRÉRÉGLÉES
+// Chaque composition = liste de couches [{mat, e (épaisseur en m)}]
+// Ordre : extérieur → intérieur pour murs ext, gauche → droite pour cloisons
+const COMP_LIB = {
+  // MURS EXTÉRIEURS
+  mur_brique_classique: {
+    label:'Mur brique 20 + ITI',
+    kind:'ext',
+    desc:'Brique creuse 20 + laine verre 100 + BA13',
+    layers:[
+      {mat:'enduit_ext', e:0.015},
+      {mat:'brique',     e:0.20},
+      {mat:'laine_verre',e:0.10},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  mur_parpaing_iti: {
+    label:'Parpaing + ITI',
+    kind:'ext',
+    desc:'Parpaing 20 + laine roche 100 + BA13',
+    layers:[
+      {mat:'enduit_ext', e:0.015},
+      {mat:'parpaing',   e:0.20},
+      {mat:'laine_roche',e:0.10},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  mur_brique_ite: {
+    label:'Brique + ITE',
+    kind:'ext',
+    desc:'ITE PSE 140 + brique 20 + enduit',
+    layers:[
+      {mat:'enduit_ext', e:0.015},
+      {mat:'pse_graph',  e:0.14},
+      {mat:'brique',     e:0.20},
+      {mat:'enduit_int', e:0.015},
+    ]
+  },
+  mur_ossature_bois: {
+    label:'Ossature bois',
+    kind:'ext',
+    desc:'Bardage + ouate 145 + OSB + BA13',
+    layers:[
+      {mat:'bardage_bois',e:0.022},
+      {mat:'ossature_bois',e:0.145},
+      {mat:'ouate_cell', e:0.145, fill:true},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  mur_beton: {
+    label:'Voile béton',
+    kind:'ext',
+    desc:'Béton 16 + PSE 100 + BA13',
+    layers:[
+      {mat:'enduit_ext', e:0.015},
+      {mat:'beton',      e:0.16},
+      {mat:'polystyrene',e:0.10},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  mur_pierre: {
+    label:'Pierre + doublage',
+    kind:'ext',
+    desc:'Pierre 40 + laine 80 + BA13',
+    layers:[
+      {mat:'pierre',     e:0.40},
+      {mat:'laine_roche',e:0.08},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  // CLOISONS
+  cloison_72_48: {
+    label:'Cloison 72/48 LV',
+    kind:'int',
+    desc:'BA13 + rail 48 + LV 45 + BA13',
+    layers:[
+      {mat:'ba13',       e:0.013},
+      {mat:'laine_verre',e:0.045, fill:true},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  cloison_98_70: {
+    label:'Cloison 98/70 LV',
+    kind:'int',
+    desc:'BA13 + rail 70 + LV 70 + BA13',
+    layers:[
+      {mat:'ba13',       e:0.013},
+      {mat:'laine_verre',e:0.07, fill:true},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  cloison_double: {
+    label:'Cloison phonique double',
+    kind:'int',
+    desc:'BA13 ×2 + LV 70 + BA13 ×2',
+    layers:[
+      {mat:'ba13',       e:0.013},
+      {mat:'ba13',       e:0.013},
+      {mat:'laine_roche',e:0.07, fill:true},
+      {mat:'ba13',       e:0.013},
+      {mat:'ba13',       e:0.013},
+    ]
+  },
+  cloison_brique: {
+    label:'Cloison brique 5',
+    kind:'int',
+    desc:'Enduit + brique 5 + enduit',
+    layers:[
+      {mat:'enduit_int', e:0.01},
+      {mat:'brique',     e:0.05},
+      {mat:'enduit_int', e:0.01},
+    ]
+  },
+  cloison_carreau: {
+    label:'Carreau plâtre 7',
+    kind:'int',
+    desc:'Plaque pleine 7cm',
+    layers:[
+      {mat:'ba18',       e:0.07},
+    ]
+  },
+};
+
+// COMPOSITIONS DE MENUISERIES
+const MENUI_LIB = {
+  porte_bois_iso: {
+    label:'Porte bois isolante',
+    desc:'Bois massif 40mm + isolation',
+    type:'door',
+    layers:[
+      {mat:'bois',       e:0.04},
+    ]
+  },
+  porte_alu: {
+    label:'Porte aluminium',
+    desc:'Alu rupture pont thermique',
+    type:'door',
+    layers:[
+      {mat:'alu_rt',     e:0.07},
+    ]
+  },
+  porte_pvc: {
+    label:'Porte PVC',
+    desc:'PVC multichambre',
+    type:'door',
+    layers:[
+      {mat:'pvc',        e:0.07},
+    ]
+  },
+  fenetre_pvc_dv: {
+    label:'Fenêtre PVC DV',
+    desc:'PVC + double vitrage 4/16/4',
+    type:'window',
+    cadre:'pvc',
+    cadreE:0.07,
+    vitrage:'vitrage_double',
+    vitrageE:0.024,
+  },
+  fenetre_pvc_tv: {
+    label:'Fenêtre PVC TV',
+    desc:'PVC + triple vitrage',
+    type:'window',
+    cadre:'pvc',
+    cadreE:0.08,
+    vitrage:'vitrage_triple',
+    vitrageE:0.044,
+  },
+  fenetre_alu_rt: {
+    label:'Fenêtre Alu RT',
+    desc:'Alu rupture pont + DV',
+    type:'window',
+    cadre:'alu_rt',
+    cadreE:0.07,
+    vitrage:'vitrage_double',
+    vitrageE:0.024,
+  },
+  fenetre_bois: {
+    label:'Fenêtre bois',
+    desc:'Bois exotique + DV',
+    type:'window',
+    cadre:'bois',
+    cadreE:0.07,
+    vitrage:'vitrage_double',
+    vitrageE:0.024,
+  },
+};
+
+// Calcul épaisseur totale d'une composition
+function compThickness(comp){
+  if(!comp || !comp.layers) return 0.10;
+  return comp.layers.reduce((s,l)=>s+l.e, 0);
+}
+
+// Calcul U (transmission thermique simplifiée)
+function compU(comp){
+  if(!comp || !comp.layers) return 1.0;
+  const Rsi=0.13, Rse=0.04;
+  let R = Rsi + Rse;
+  for(const l of comp.layers){
+    const m = MAT_LIB[l.mat];
+    if(!m) continue;
+    R += (l.e / 1.0) * (m.r > 0 ? m.r/0.04 : 0.5); // approximation
+  }
+  return Math.max(0.1, 1/R);
+}
+
 const SC = {
-  walls: [],
-  openings: [],
+  walls: [],          // {pts, closed, kind:'ext'|'int', comp:'mur_brique_classique', layers:[...]}
+  openings: [],       // {id, type, wi, si, t, w, menui:'fenetre_pvc_dv'}
   sanitaires: [],
   electrique: [],
   roomH: 2.50,
@@ -583,7 +873,7 @@ function enterApp(){
   document.getElementById('app').style.display='flex';
   // Pré-créer une pièce 3×2.4m si vide
   if(!SC.walls.length){
-    SC.walls=[{pts:[{x:0,y:0},{x:3,y:0},{x:3,y:2.4},{x:0,y:2.4}],closed:true}];
+    SC.walls=[{pts:[{x:0,y:0},{x:3,y:0},{x:3,y:2.4},{x:0,y:2.4}],closed:true,kind:"ext",comp:"mur_brique_classique"}];
   }
   goStep(0);
 }
@@ -681,7 +971,7 @@ function snap(x,y,g=0.10){ return {x:Math.round(x/g)*g, y:Math.round(y/g)*g}; }
 //  ÉVÉNEMENTS UNIFIÉS
 // ════════════════════════════════
 function setupCanvasEvents(name, cv){
-  let dragId=-1, dragOff={x:0,y:0};
+  let dragId=-1, dragOff={x:0,y:0}, dragMode='move';
   let touchData=[];
   let lastTap=0;
 
@@ -695,7 +985,19 @@ function setupCanvasEvents(name, cv){
     const sp=snap(p.x,p.y);
 
     if(name==='draw'){
-      if(drawTool==='pan') return; // pan géré par touchmove
+      if(drawTool==='pan'){
+        // Mode sélection : tap sur un mur l'édite
+        const wi = hitWall(p.x, p.y);
+        if(wi !== null){
+          selWallIdx = wi;
+          openWallProp(wi);
+        } else {
+          selWallIdx = -1;
+          closePS('wall');
+        }
+        redraw(name);
+        return;
+      }
       if(drawTool==='poly'){
         // Test fermeture
         if(curPoly.length>2){
@@ -708,17 +1010,43 @@ function setupCanvasEvents(name, cv){
         curPoly.push(sp);
         if(curPoly.length===2){
           const [a,b]=curPoly;
-          SC.walls.push({pts:[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}],closed:true});
+          SC.walls.push({pts:[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}],closed:true,kind:"ext",comp:"mur_brique_classique"});
           curPoly=[];
         }
       }
       redraw(name);
     }
     else if(name==='open'){
-      placeOpening(p.x,p.y);
+      // D'abord tester si on tap sur une ouverture existante
+      const hitO = hitOp(p.x, p.y);
+      if(hitO){
+        selOpId = hitO.id;
+        openOpProp(hitO.id);
+        redraw(name);
+        return;
+      }
+      placeOpening(p.x, p.y);
       redraw(name);
     }
     else if(name==='san'){
+      // Test si on tap sur le pommeau d'une douche italienne sélectionnée
+      let pommeauHit = null;
+      for(const s of SC.sanitaires){
+        if(s.type !== 'douche_it') continue;
+        const pp = pommeauPos(s);
+        if(Math.hypot(p.x - pp.x, p.y - pp.y) < 0.15){
+          pommeauHit = s;
+          break;
+        }
+      }
+      if(pommeauHit){
+        selSanId = pommeauHit.id;
+        dragId = pommeauHit.id;
+        dragMode = 'pommeau';
+        openSanProp(pommeauHit.id);
+        redraw(name);
+        return;
+      }
       const hit = hitTest(p.x,p.y, SC.sanitaires, s=>{
         const c=CAT_SAN[s.type];
         return Math.max(c.w,c.d)/2*1.1;
@@ -726,6 +1054,7 @@ function setupCanvasEvents(name, cv){
       if(hit){
         selSanId=hit.id;
         dragId=hit.id;
+        dragMode = 'move';
         dragOff={x:hit.x-p.x, y:hit.y-p.y};
         openSanProp(hit.id);
       } else {
@@ -753,7 +1082,18 @@ function setupCanvasEvents(name, cv){
     if(dragId>0){
       if(name==='san'){
         const el=SC.sanitaires.find(s=>s.id===dragId);
-        if(el){ el.x=p.x+dragOff.x; el.y=p.y+dragOff.y; updateSanProp(dragId); }
+        if(el){
+          if(dragMode==='pommeau'){
+            // Déplacer pommeau : convertir position monde → repère local
+            const loc = worldToLocalPommeau(el, p.x, p.y);
+            el.pommeauLx = loc.lx;
+            el.pommeauLy = loc.ly;
+            updateSanProp(dragId);
+          } else {
+            el.x=p.x+dragOff.x; el.y=p.y+dragOff.y;
+            updateSanProp(dragId);
+          }
+        }
       } else if(name==='el'){
         const el=SC.electrique.find(e=>e.id===dragId);
         if(el){
@@ -776,7 +1116,7 @@ function setupCanvasEvents(name, cv){
     onPress(e.clientX, e.clientY);
   });
   cv.addEventListener('mousemove', e=>onMove(e.clientX, e.clientY));
-  document.addEventListener('mouseup', ()=>{ dragId=-1; });
+  document.addEventListener('mouseup', ()=>{ dragId=-1; dragMode='move'; });
   cv.addEventListener('dblclick', e=>{
     e.preventDefault();
     onPress(e.clientX, e.clientY, true);
@@ -865,7 +1205,7 @@ function setTool(t){
 }
 
 function closePoly(){
-  if(curPoly.length>=3) SC.walls.push({pts:[...curPoly],closed:true});
+  if(curPoly.length>=3) SC.walls.push({pts:[...curPoly],closed:true,kind:"ext",comp:"mur_brique_classique"});
   curPoly=[];
   redraw('draw');
 }
@@ -876,8 +1216,8 @@ function undo(){
   redraw('draw');
 }
 
-function clearAll(){
-  if(!confirm('Effacer tout le tracé ?')) return;
+async function clearAll(){
+  if(!await askConfirm('Effacer tout le tracé ?')) return;
   SC.walls=[]; curPoly=[]; SC.openings=[]; SC.sanitaires=[]; SC.electrique=[];
   redraw('draw');
 }
@@ -905,7 +1245,208 @@ function placeOpening(x,y){
   }
   if(!best) return;
   const w={door:0.80, window:1.00, wide:1.40}[openType] || 0.80;
-  SC.openings.push({id:++SC.idSeq, type:openType, wi:best.wi, si:best.si, t:best.t, w});
+  const defMenui = openType==='window' ? 'fenetre_pvc_dv' : 'porte_bois_iso';
+  const id=++SC.idSeq;
+  SC.openings.push({id, type:openType, wi:best.wi, si:best.si, t:best.t, w, menui:defMenui, openDeg:30});
+  selOpId=id;
+  openOpProp(id);
+}
+
+let selWallIdx=-1, selOpId=-1;
+
+// Sélection mur par tap (utilisé en mode Pan/Sélect)
+function hitWall(x, y){
+  let best=null, bestD=0.20;
+  for(let i=0; i<SC.walls.length; i++){
+    const w=SC.walls[i];
+    const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;
+    for(let s=0; s<pts.length-1; s++){
+      const r=ptToSeg(x,y, pts[s], pts[s+1]);
+      if(r.d<bestD){ bestD=r.d; best=i; }
+    }
+  }
+  return best;
+}
+
+function hitOp(x, y){
+  for(let i=SC.openings.length-1; i>=0; i--){
+    const op=SC.openings[i];
+    const w=SC.walls[op.wi]; if(!w) continue;
+    const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;
+    if(op.si>=pts.length-1) continue;
+    const a=pts[op.si], b=pts[op.si+1];
+    const cx=a.x+(b.x-a.x)*op.t, cy=a.y+(b.y-a.y)*op.t;
+    if(Math.hypot(x-cx, y-cy) < 0.25) return op;
+  }
+  return null;
+}
+
+function openWallProp(idx){
+  const w=SC.walls[idx]; if(!w) return;
+  if(!w.comp) w.comp = w.kind==='int' ? 'cloison_72_48' : 'mur_brique_classique';
+  document.getElementById('psWall').classList.add('open');
+  document.getElementById('psWallTitle').textContent = `Mur ${idx+1}`;
+  updateWallProp(idx);
+}
+
+function updateWallProp(idx){
+  const w=SC.walls[idx]; if(!w) return;
+  const comp = COMP_LIB[w.comp];
+  const thick = compThickness(comp);
+  const u = compU(comp);
+
+  // Filtrer compositions selon kind (ext/int)
+  const compChoices = Object.entries(COMP_LIB)
+    .filter(([k,c])=>!w.kind || c.kind===w.kind || !c.kind)
+    .map(([k,c])=>`<option value="${k}"${k===w.comp?' selected':''}>${c.label}</option>`)
+    .join('');
+
+  let layersHtml = '<div style="margin-top:10px"><div class="pf-l">Couches</div>';
+  if(comp && comp.layers){
+    for(let i=0; i<comp.layers.length; i++){
+      const l = comp.layers[i];
+      const m = MAT_LIB[l.mat];
+      if(!m) continue;
+      const colHex = '#' + m.col.map(c=>Math.round(c*255).toString(16).padStart(2,'0')).join('');
+      layersHtml += `
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--bor2);border-radius:6px;margin-bottom:4px;font-size:.7rem">
+          <div style="width:14px;height:14px;background:${colHex};border:1px solid rgba(255,255,255,.2);border-radius:3px"></div>
+          <div style="flex:1">${m.label}</div>
+          <div style="font-family:ui-monospace,monospace;color:var(--mid)">${(l.e*1000).toFixed(0)}mm</div>
+        </div>`;
+    }
+  }
+  layersHtml += '</div>';
+
+  const html = `
+    <div class="pf">
+      <div class="pf-l">Type de mur</div>
+      <select onchange="setWallProp(${idx},'kind',this.value);updateWallProp(${idx})">
+        <option value="ext"${w.kind==='ext'?' selected':''}>Mur extérieur</option>
+        <option value="int"${w.kind==='int'?' selected':''}>Cloison intérieure</option>
+      </select>
+    </div>
+    <div class="pf" style="margin-top:8px">
+      <div class="pf-l">Composition</div>
+      <select onchange="setWallProp(${idx},'comp',this.value);updateWallProp(${idx})">
+        ${compChoices}
+      </select>
+    </div>
+    ${comp ? `<div style="font-size:.65rem;color:var(--mid);font-style:italic;margin-top:4px">${comp.desc||''}</div>` : ''}
+    <div class="status-info" style="margin-top:10px">
+      <span>Épaisseur totale</span><b>${(thick*100).toFixed(1)} cm</b>
+    </div>
+    <div class="status-info">
+      <span>Coef. U (W/m²·K)</span><b>${u.toFixed(2)}</b>
+    </div>
+    ${layersHtml}
+    <button class="del-btn" onclick="delWall(${idx})">🗑 Supprimer ce mur</button>`;
+  document.getElementById('psWallBody').innerHTML = html;
+}
+
+function setWallProp(idx, k, v){
+  const w=SC.walls[idx]; if(!w) return;
+  w[k] = v;
+  // Si on change le kind, basculer vers une composition compatible
+  if(k==='kind'){
+    const cur = COMP_LIB[w.comp];
+    if(!cur || cur.kind !== v){
+      w.comp = v==='int' ? 'cloison_72_48' : 'mur_brique_classique';
+    }
+  }
+  redraw('draw');
+}
+
+async function delWall(idx){
+  if(!await askConfirm('Supprimer ce mur ?')) return;
+  SC.walls.splice(idx, 1);
+  // Nettoyer les ouvertures sur ce mur
+  SC.openings = SC.openings.filter(op => op.wi !== idx);
+  // Décaler les wi des ouvertures sur les murs suivants
+  SC.openings.forEach(op => { if(op.wi > idx) op.wi--; });
+  selWallIdx=-1;
+  closePS('wall');
+  redraw('draw');
+}
+
+// ── Ouverture : prop sheet ──
+function openOpProp(id){
+  const op = SC.openings.find(o=>o.id===id); if(!op) return;
+  document.getElementById('psOp').classList.add('open');
+  document.getElementById('psOpIco').textContent = op.type==='window' ? '🪟' : '🚪';
+  document.getElementById('psOpTitle').textContent = {door:'Porte',wide:'Double porte',window:'Fenêtre'}[op.type] || 'Ouverture';
+  updateOpProp(id);
+}
+
+function updateOpProp(id){
+  const op=SC.openings.find(o=>o.id===id); if(!op) return;
+  if(!op.menui) op.menui = op.type==='window' ? 'fenetre_pvc_dv' : 'porte_bois_iso';
+
+  // Filtrer menuiseries selon type
+  const menChoices = Object.entries(MENUI_LIB)
+    .filter(([k,m])=>m.type===op.type || (op.type==='wide' && m.type==='door'))
+    .map(([k,m])=>`<option value="${k}"${k===op.menui?' selected':''}>${m.label}</option>`)
+    .join('');
+
+  const m = MENUI_LIB[op.menui];
+  let detail = '';
+  if(m){
+    if(m.type==='window'){
+      const cadre = MAT_LIB[m.cadre];
+      const vit = MAT_LIB[m.vitrage];
+      detail = `
+        <div class="status-info"><span>Cadre</span><b>${cadre?cadre.label:'—'} ${(m.cadreE*1000).toFixed(0)}mm</b></div>
+        <div class="status-info"><span>Vitrage</span><b>${vit?vit.label:'—'} ${(m.vitrageE*1000).toFixed(0)}mm</b></div>
+        <div class="status-info"><span>U fenêtre (Uw)</span><b>${vit?vit.U.toFixed(2):'—'} W/m²·K</b></div>`;
+    } else {
+      const c = m.layers && m.layers[0] ? MAT_LIB[m.layers[0].mat] : null;
+      detail = `
+        <div class="status-info"><span>Matériau</span><b>${c?c.label:'—'}</b></div>
+        ${m.layers ? `<div class="status-info"><span>Épaisseur</span><b>${(m.layers[0].e*1000).toFixed(0)}mm</b></div>` : ''}`;
+    }
+  }
+
+  const html = `
+    <div class="pf-grid">
+      <div class="pf">
+        <div class="pf-l">Largeur (m)</div>
+        <input type="number" value="${op.w.toFixed(2)}" step="0.10" min="0.40" max="2.00"
+          onchange="setOpProp(${id},'w',+this.value)">
+      </div>
+      <div class="pf">
+        <div class="pf-l">Position (0-1)</div>
+        <input type="number" value="${op.t.toFixed(2)}" step="0.05" min="0" max="1"
+          onchange="setOpProp(${id},'t',+this.value)">
+      </div>
+    </div>
+    <div class="pf" style="margin-top:8px">
+      <div class="pf-l">Menuiserie</div>
+      <select onchange="setOpProp(${id},'menui',this.value);updateOpProp(${id})">${menChoices}</select>
+    </div>
+    ${m ? `<div style="font-size:.65rem;color:var(--mid);font-style:italic;margin-top:4px">${m.desc||''}</div>` : ''}
+    ${detail}
+    ${op.type!=='window' ? `
+    <div class="pf" style="margin-top:8px">
+      <div class="pf-l">Ouverture porte (degrés)</div>
+      <input type="range" min="0" max="120" step="5" value="${op.openDeg||30}"
+        oninput="setOpProp(${id},'openDeg',+this.value);updateOpProp(${id})" style="accent-color:var(--ac)">
+      <div style="text-align:right;font-family:ui-monospace,monospace;font-size:.7rem;color:var(--mid)">${op.openDeg||30}°</div>
+    </div>` : ''}
+    <button class="del-btn" onclick="delOp(${id})">🗑 Supprimer</button>`;
+  document.getElementById('psOpBody').innerHTML = html;
+}
+
+function setOpProp(id, k, v){
+  const op = SC.openings.find(o=>o.id===id); if(!op) return;
+  op[k] = v;
+  redraw('open');
+}
+
+function delOp(id){
+  SC.openings = SC.openings.filter(o=>o.id!==id);
+  selOpId=-1;
+  closePS('op');
+  redraw('open');
 }
 
 function ptToSeg(px,py, a, b){
@@ -951,6 +1492,30 @@ function updateSanProp(id){
   const s=SC.sanitaires.find(x=>x.id===id); if(!s) return;
   const c=CAT_SAN[s.type];
   const rotDeg=Math.round((s.rot||0)*180/Math.PI);
+
+  // Section pommeau (douche italienne seulement)
+  let pommeauSection = '';
+  if(s.type === 'douche_it'){
+    const pp = pommeauPos(s);
+    const isCustom = typeof s.pommeauLx === 'number';
+    pommeauSection = `
+    <div style="margin-top:8px;padding:8px 10px;background:rgba(34,211,238,.10);border:1px solid rgba(34,211,238,.30);border-radius:8px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-size:.9rem">⊕</span>
+        <span style="font-weight:700;font-size:.72rem;color:#22d3ee">Pommeau de douche</span>
+      </div>
+      <div style="font-size:.65rem;color:var(--mid);margin-bottom:4px">
+        Position : ${pp.x.toFixed(2)} · ${pp.y.toFixed(2)} m
+        ${isCustom?' <span style="color:#22d3ee">(personnalisée)</span>':' <span style="color:var(--mid)">(auto coin)</span>'}
+      </div>
+      <div style="font-size:.62rem;color:var(--mid);margin-bottom:6px;font-style:italic">
+        Le V1 s'étend de 1,20 m horizontalement autour du pommeau.<br>
+        Glissez le point ⊕ sur le plan pour le déplacer.
+      </div>
+      ${isCustom?`<button onclick="resetPommeau(${id})" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(34,211,238,.30);background:transparent;color:#22d3ee;font-weight:600;font-size:.7rem;cursor:pointer">↺ Position auto</button>`:''}
+    </div>`;
+  }
+
   document.getElementById('psSanBody').innerHTML=`
     <div class="status-info">
       <span>Dimensions</span>
@@ -969,9 +1534,18 @@ function updateSanProp(id){
       <button class="action-btn" style="flex:1;padding:9px;border-radius:8px;border:1.5px solid var(--bor);background:var(--bor2);color:var(--txt2);font-weight:600;font-size:.7rem;cursor:pointer" onclick="rotSan(${id},-90)">↺ -90°</button>
       <button class="action-btn" style="flex:1;padding:9px;border-radius:8px;border:1.5px solid var(--bor);background:var(--bor2);color:var(--txt2);font-weight:600;font-size:.7rem;cursor:pointer" onclick="rotSan(${id},90)">↻ +90°</button>
     </div>
+    ${pommeauSection}
     ${c.water?'<div class="status-badge ok" style="margin-top:8px">💧 ' + (c.genZone?'Génère des zones NF C 15-100':'Sanitaire d\'eau (sans zone)') + '</div>':
               '<div class="status-badge wn" style="margin-top:8px">Pas d\'eau</div>'}
     <button class="del-btn" onclick="delSan(${id})">🗑 Supprimer</button>`;
+}
+
+function resetPommeau(id){
+  const s=SC.sanitaires.find(x=>x.id===id); if(!s) return;
+  delete s.pommeauLx;
+  delete s.pommeauLy;
+  updateSanProp(id);
+  redraw('san');
 }
 
 function setSanRot(id, deg){
@@ -1060,32 +1634,172 @@ function lineCrossesWall(ax, ay, px, py){
   return false;
 }
 
-function distToEdge(px,py){
-  let m=Infinity;
-  for(const s of SC.sanitaires){
-    const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
-    // Bloqué par un mur ? → ignorer
-    if(lineCrossesWall(s.x, s.y, px, py)) continue;
-    const cx=Math.max(s.x-c.w/2, Math.min(s.x+c.w/2, px));
-    const cy=Math.max(s.y-c.d/2, Math.min(s.y+c.d/2, py));
-    m=Math.min(m, Math.hypot(px-cx, py-cy)*100);
-  }
-  return m;
+// ════════════════════════════════════════════════════════════════
+//  CALCUL DES VOLUMES NF C 15-100
+//
+//  V0 :
+//    - Baignoire / bac à douche : intérieur du bac (z = 0 → c.h3)
+//    - Douche italienne : sol → 10 cm sur l'emprise
+//
+//  V1 :
+//    - Au-dessus du V0
+//    - Hauteur : jusqu'à 2,25 m au-dessus de la bonde (= sol fini)
+//    - Largeur : empreinte du V0
+//    - Douche italienne : extension de 1,20 m autour du pommeau
+//
+//  V2 :
+//    - +60 cm horizontal autour du V1
+//    - Hauteur : sol → 2,25 m au-dessus bonde
+// ════════════════════════════════════════════════════════════════
+
+// Position de la bonde (pour l'instant : centre du sanitaire)
+function bondePos(s){
+  return {x: s.x, y: s.y};
 }
 
-function inSan(px,py){
+// Position du pommeau de douche (pour l'italienne)
+// Par défaut : coin opposé à la bonde (s.x - 0.30, s.y - 0.30) en local
+function pommeauPos(s){
+  const c=CAT_SAN[s.type]; if(!c) return {x:s.x, y:s.y};
+  // Si pommeau personnalisé stocké en local (px, py par rapport au centre, avant rotation)
+  // Par défaut : coin "haut-gauche" du sanitaire
+  const lx = (typeof s.pommeauLx === 'number') ? s.pommeauLx : -c.w*0.30;
+  const ly = (typeof s.pommeauLy === 'number') ? s.pommeauLy : -c.d*0.30;
+  // Appliquer rotation
+  const cos=Math.cos(s.rot||0), sin=Math.sin(s.rot||0);
+  return {
+    x: s.x + lx*cos - ly*sin,
+    y: s.y + lx*sin + ly*cos,
+  };
+}
+
+// Conversion inverse : position monde → position locale (avant rotation)
+function worldToLocalPommeau(s, px, py){
+  const cos=Math.cos(-(s.rot||0)), sin=Math.sin(-(s.rot||0));
+  const dx = px - s.x, dy = py - s.y;
+  return {
+    lx: dx*cos - dy*sin,
+    ly: dx*sin + dy*cos,
+  };
+}
+
+// Test si un point (px,py) est dans l'emprise du sanitaire (rotation incluse)
+function inSanitaire(px, py, s){
+  const c=CAT_SAN[s.type]; if(!c) return false;
+  // Repasser dans le repère local du sanitaire
+  const cos=Math.cos(-(s.rot||0)), sin=Math.sin(-(s.rot||0));
+  const dx = px - s.x, dy = py - s.y;
+  const lx = dx*cos - dy*sin;
+  const ly = dx*sin + dy*cos;
+  return Math.abs(lx) <= c.w/2 && Math.abs(ly) <= c.d/2;
+}
+
+// Distance min en cm d'un point à l'emprise du sanitaire (rotation incluse)
+function distToSanEmprise(px, py, s){
+  const c=CAT_SAN[s.type]; if(!c) return Infinity;
+  const cos=Math.cos(-(s.rot||0)), sin=Math.sin(-(s.rot||0));
+  const dx = px - s.x, dy = py - s.y;
+  const lx = dx*cos - dy*sin;
+  const ly = dx*sin + dy*cos;
+  const cx = Math.max(-c.w/2, Math.min(c.w/2, lx));
+  const cy = Math.max(-c.d/2, Math.min(c.d/2, ly));
+  return Math.hypot(lx-cx, ly-cy) * 100;
+}
+
+// Le point (px, py) est-il dans le V0 d'un des sanitaires ?
+function inV0(px, py){
   for(const s of SC.sanitaires){
     const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
-    if(px>=s.x-c.w/2 && px<=s.x+c.w/2 && py>=s.y-c.d/2 && py<=s.y+c.d/2) return true;
+    if(inSanitaire(px, py, s)) return true;
   }
   return false;
 }
 
-function getZone(x,y,h=1){
-  if(inSan(x,y)) return 0;
-  const d=distToEdge(x,y);
-  if(d<=60 && h<=2.25) return 1;
-  if(d<=120 && h<=2.25) return 2;
+// Distance horizontale min au pommeau de douche (pour V1 douche italienne) en cm
+function distToPommeau(px, py){
+  let m=Infinity;
+  for(const s of SC.sanitaires){
+    const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
+    // Seule la douche italienne a un V1 étendu autour du pommeau
+    if(s.type !== 'douche_it') continue;
+    if(lineCrossesWall(s.x, s.y, px, py)) continue;
+    const p = pommeauPos(s);
+    m = Math.min(m, Math.hypot(px-p.x, py-p.y)*100);
+  }
+  return m;
+}
+
+// Distance horizontale min à l'emprise V0 de TOUS les sanitaires generateurs (en cm)
+// Sert à V2 = +60cm autour de V1
+function distToV0(px, py){
+  let m=Infinity;
+  for(const s of SC.sanitaires){
+    const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
+    if(lineCrossesWall(s.x, s.y, px, py)) continue;
+    m = Math.min(m, distToSanEmprise(px, py, s));
+  }
+  return m;
+}
+
+// Garde l'ancienne fonction distToEdge comme alias pour compatibilité
+function distToEdge(px,py){ return distToV0(px, py); }
+function inSan(px, py){ return inV0(px, py); }
+
+// Détermine la zone d'un point 3D (x, y, h)
+// h = hauteur en mètres
+// Retourne 0, 1, 2 ou 'hors'
+function getZone(x, y, h=1){
+  // V0
+  if(inV0(x, y)){
+    // Baignoire/bac : V0 est entre 0 et c.h3
+    // Douche italienne : V0 est entre 0 et 0.10 m
+    for(const s of SC.sanitaires){
+      const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
+      if(!inSanitaire(x, y, s)) continue;
+      if(s.type === 'douche_it'){
+        // V0 = sol → 10 cm
+        if(h <= 0.10) return 0;
+        // Au-dessus : V1 si h ≤ 2.25
+        if(h <= 2.25) return 1;
+      } else {
+        // Baignoire/bac/balnéo : V0 = sol → h3 (rebord)
+        if(h <= (c.h3 || 0.55)) return 0;
+        // Au-dessus : V1
+        if(h <= 2.25) return 1;
+      }
+      return 'hors';
+    }
+  }
+
+  // V1 douche italienne : 1.20 m autour du pommeau (sol → 2.25 m)
+  if(distToPommeau(x, y) <= 120 && h <= 2.25) return 1;
+
+  // V1 baignoire/bac : empreinte du V0 + verticale jusqu'à 2.25m
+  // (déjà géré par inV0 ci-dessus)
+
+  // V2 : +60 cm autour du V1, sol → 2.25 m
+  // V1 = soit l'empreinte V0 (baignoire/bac), soit 120cm autour pommeau (italienne)
+  // Donc V2 = 60 cm autour de l'emprise V0 pour bac/baignoire,
+  //    OU = entre 120cm et 180cm autour du pommeau pour italienne
+  if(h <= 2.25){
+    // V2 baignoire/bac : 0-60 cm autour du V0 (en 2D)
+    const dV0 = distToV0(x, y);
+    if(dV0 > 0 && dV0 <= 60){
+      // Vérifier que ce sanitaire est bien baignoire/bac (pas italienne)
+      // Note : si plusieurs sanitaires, on prend le plus proche
+      const hasNonItalienneNearby = SC.sanitaires.some(s=>{
+        const c=CAT_SAN[s.type]; if(!c?.genZone) return false;
+        if(s.type === 'douche_it') return false;
+        if(lineCrossesWall(s.x, s.y, x, y)) return false;
+        return distToSanEmprise(x, y, s) <= 60;
+      });
+      if(hasNonItalienneNearby) return 2;
+    }
+    // V2 douche italienne : entre 120cm et 180cm autour du pommeau
+    const dP = distToPommeau(x, y);
+    if(dP > 120 && dP <= 180) return 2;
+  }
+
   return 'hors';
 }
 
@@ -1188,9 +1902,13 @@ function delEl(id){
 }
 
 function closePS(name){
-  document.getElementById('ps'+name[0].toUpperCase()+name.slice(1)).classList.remove('open');
+  const id = 'ps'+name[0].toUpperCase()+name.slice(1);
+  const el = document.getElementById(id);
+  if(el) el.classList.remove('open');
   if(name==='san'){ selSanId=-1; redraw('san'); }
   if(name==='el'){ selElId=-1; redraw('el'); }
+  if(name==='wall'){ selWallIdx=-1; redraw('draw'); }
+  if(name==='op'){ selOpId=-1; redraw('open'); }
 }
 
 // ════════════════════════════════
@@ -1257,19 +1975,24 @@ function drawGrid(ctx, W, H, v){
 
 function drawWalls(ctx, v){
   if(!SC.walls.length) return;
-  for(const w of SC.walls){
+  for(let wi=0; wi<SC.walls.length; wi++){
+    const w = SC.walls[wi];
     if(w.pts.length<2) continue;
-    const T=Math.max(6, v.sc*0.05);
-    const p0=mToScreen(w.pts[0].x, w.pts[0].y, v);
+    const isSel = (wi===selWallIdx);
+    const comp = w.comp ? COMP_LIB[w.comp] : null;
+    const realThick = comp ? compThickness(comp) : (w.kind==='int' ? 0.10 : 0.20);
+    // Épaisseur visuelle proportionnelle à l'épaisseur réelle
+    const T = Math.max(4, v.sc * realThick);
+    const p0 = mToScreen(w.pts[0].x, w.pts[0].y, v);
     ctx.beginPath();
-    ctx.moveTo(p0.x,p0.y);
-    for(let i=1;i<w.pts.length;i++){
+    ctx.moveTo(p0.x, p0.y);
+    for(let i=1; i<w.pts.length; i++){
       const p=mToScreen(w.pts[i].x, w.pts[i].y, v);
-      ctx.lineTo(p.x,p.y);
+      ctx.lineTo(p.x, p.y);
     }
     if(w.closed) ctx.closePath();
     if(w.closed){
-      // Sol carrelé
+      // Fond pièce (sol)
       ctx.fillStyle='#1a2b3e';
       ctx.fill();
       // Texture carrelage 40cm
@@ -1278,7 +2001,6 @@ function drawWalls(ctx, v){
       const ts=0.40*v.sc;
       ctx.strokeStyle='rgba(96,165,250,.08)';
       ctx.lineWidth=0.5;
-      // Bbox du polygone
       let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
       for(const p of w.pts){
         const sp=mToScreen(p.x,p.y,v);
@@ -1293,16 +2015,61 @@ function drawWalls(ctx, v){
       }
       ctx.restore();
     }
-    // Mur extérieur (épais)
-    ctx.strokeStyle='#3b82f6';
-    ctx.lineWidth=T;
+    // Halo si sélectionné
+    if(isSel){
+      ctx.shadowColor='rgba(96,165,250,.8)';
+      ctx.shadowBlur=12;
+    }
+    // Couleur selon type
+    const wallCol = w.kind==='int' ? '#f59e0b' : '#3b82f6';
+    ctx.strokeStyle = isSel ? '#60a5fa' : wallCol;
+    ctx.lineWidth = T;
     ctx.lineJoin='round';
     ctx.lineCap='round';
     ctx.stroke();
-    // Reflet intérieur
-    ctx.strokeStyle='rgba(255,255,255,.18)';
-    ctx.lineWidth=1.5;
-    ctx.stroke();
+    ctx.shadowBlur=0;
+    // Reflet intérieur (couches visibles)
+    if(comp && comp.layers && comp.layers.length>1){
+      // Trace une ligne plus fine au milieu pour suggérer les couches
+      ctx.strokeStyle='rgba(255,255,255,.15)';
+      ctx.lineWidth=Math.max(1, T*0.20);
+      ctx.stroke();
+      ctx.strokeStyle='rgba(0,0,0,.20)';
+      ctx.lineWidth=1.2;
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle='rgba(255,255,255,.18)';
+      ctx.lineWidth=1.5;
+      ctx.stroke();
+    }
+
+    // Label composition (sur le mur)
+    if(comp){
+      const pts=w.closed?[...w.pts,w.pts[0]]:w.pts;
+      // Trouver le segment le plus long
+      let bestLen=0, bestSeg=null;
+      for(let i=0;i<pts.length-1;i++){
+        const a=pts[i], b=pts[i+1];
+        const len=Math.hypot(b.x-a.x,b.y-a.y);
+        if(len>bestLen){ bestLen=len; bestSeg={a,b,len}; }
+      }
+      if(bestSeg && bestLen>1.0){
+        const a=bestSeg.a, b=bestSeg.b;
+        const m=mToScreen((a.x+b.x)/2, (a.y+b.y)/2, v);
+        ctx.save();
+        ctx.translate(m.x, m.y);
+        ctx.rotate(Math.atan2(b.y-a.y, b.x-a.x));
+        ctx.fillStyle='rgba(20,26,38,.92)';
+        const txt = comp.label;
+        ctx.font='bold 8px ui-monospace,monospace';
+        const tw = ctx.measureText(txt).width;
+        ctx.fillRect(-tw/2-4, -22, tw+8, 11);
+        ctx.fillStyle='#9ab4d4';
+        ctx.textAlign='center';
+        ctx.fillText(txt, 0, -14);
+        ctx.restore();
+      }
+    }
 
     // Cotes
     ctx.font=`9px ui-monospace,monospace`;
@@ -1353,12 +2120,9 @@ function drawOpenings(ctx, v){
 }
 
 function drawZones(ctx, v){
-  // Zones uniquement pour baignoire/douche/balnéo
-  // Calcul réel par échantillonnage pour respecter le clipping par les murs
   const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
   if(!sanZ.length) return;
 
-  // Trouver bbox de la pièce
   let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
   if(SC.walls.length){
     for(const w of SC.walls) for(const p of w.pts){
@@ -1367,51 +2131,66 @@ function drawZones(ctx, v){
     }
   } else { mnx=0;mxx=3;mny=0;mxy=2.4; }
 
-  // Pas dynamique selon zoom — taille pixel ≈ 4-6px
   const STEP = Math.max(0.04, Math.min(0.10, 5/v.sc));
   const cellPx = STEP * v.sc;
-
   const roomPoly = SC.walls.length && SC.walls[0].closed ? SC.walls[0].pts : null;
 
-  // 3 passes : Z2, Z1, Z0 (du plus grand au plus petit)
-  const passes = [
-    {max:120, fill:'rgba(37,99,235,.15)',  stk:'rgba(37,99,235,.5)',  lbl:'Z2'},
-    {max: 60, fill:'rgba(245,158,11,.18)', stk:'rgba(245,158,11,.6)', lbl:'Z1'},
-    {max:  0, fill:'rgba(220,38,38,.25)',  stk:'rgba(220,38,38,.7)',  lbl:'Z0'},
-  ];
+  // Couleurs des zones (vue dessus = h=1m → V0/V1/V2 en projection horizontale)
+  // V2 plus pâle (extérieur), V1 moyen, V0 vif (intérieur)
+  const colorsByZone = {
+    0: 'rgba(220,38,38,.30)',
+    1: 'rgba(245,158,11,.22)',
+    2: 'rgba(37,99,235,.18)',
+  };
 
-  for(const pass of passes){
-    ctx.fillStyle = pass.fill;
+  // 3 passes : V2, V1, V0 (les superpositions ne posent pas de problème)
+  for(const z of [2, 1, 0]){
+    ctx.fillStyle = colorsByZone[z];
     for(let mx=mnx; mx<=mxx; mx+=STEP){
       for(let my=mny; my<=mxy; my+=STEP){
-        // Test pièce
         if(roomPoly && !ptInPoly(mx, my, roomPoly)) continue;
-        let zoneOK = false;
-        if(pass.max === 0){
-          if(inSan(mx, my)) zoneOK = true;
-        } else if(pass.max === 60){
-          if(!inSan(mx, my) && distToEdge(mx, my) <= 60) zoneOK = true;
-        } else {
-          if(!inSan(mx, my)){
-            const d = distToEdge(mx, my);
-            if(d > 60 && d <= 120) zoneOK = true;
-          }
-        }
-        if(!zoneOK) continue;
+        // h=1m : on est entre 0.10 et 2.25 donc V0 baignoire, V1 partout au-dessus emprise, etc.
+        const zoneAtPt = getZone(mx, my, 1.0);
+        if(zoneAtPt !== z) continue;
         const sp = mToScreen(mx, my, v);
         ctx.fillRect(sp.x - cellPx/2, sp.y - cellPx/2, cellPx + 0.5, cellPx + 0.5);
       }
     }
   }
 
-  // Labels au centre de chaque sanitaire avec zone
+  // Pommeau de douche (point déplaçable pour douche italienne)
   for(const s of sanZ){
-    const c = CAT_SAN[s.type];
-    const sp = mToScreen(s.x, s.y - c.d/2 - 0.05, v);
-    ctx.fillStyle = 'rgba(220,38,38,.9)';
-    ctx.font = 'bold 9px ui-monospace,monospace';
+    if(s.type !== 'douche_it') continue;
+    const p = pommeauPos(s);
+    const sp = mToScreen(p.x, p.y, v);
+    // Halo / anneau extérieur (drag-affordance)
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 13, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(34,211,238,.45)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3,3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Cercle plein
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 8, 0, Math.PI*2);
+    ctx.fillStyle = '#22d3ee';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Croix centrale (style cible)
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(sp.x-3, sp.y); ctx.lineTo(sp.x+3, sp.y);
+    ctx.moveTo(sp.x, sp.y-3); ctx.lineTo(sp.x, sp.y+3);
+    ctx.stroke();
+    // Label
+    ctx.font = 'bold 8px ui-monospace,monospace';
+    ctx.fillStyle = '#22d3ee';
     ctx.textAlign = 'center';
-    ctx.fillText('Z0/Z1/Z2', sp.x, sp.y);
+    ctx.fillText('Pommeau', sp.x, sp.y - 16);
   }
 }
 
@@ -1752,27 +2531,22 @@ function calcVols(){
   const roomVol = rArea*H;
   if(!roomPoly.length) return {roomVol:0, z0:0, z1:0, z2:0, hors:0};
 
-  const STEP=0.05, cell=STEP*STEP;
-  let z0pts=0, z1pts=0, z2pts=0;
-  for(let x=mnx+STEP/2; x<mxx; x+=STEP){
-    for(let y=mny+STEP/2; y<mxy; y+=STEP){
+  // Échantillonnage 3D : on parcourt en X, Y, Z avec un pas adapté
+  const STEPxz=0.10, STEPy=0.15;
+  const cellV = STEPxz*STEPxz*STEPy;
+  let z0v=0, z1v=0, z2v=0;
+  for(let x=mnx+STEPxz/2; x<mxx; x+=STEPxz){
+    for(let y=mny+STEPxz/2; y<mxy; y+=STEPxz){
       if(!ptInPoly(x,y,roomPoly)) continue;
-      if(inSan(x,y)) z0pts++;
-      else {
-        const d=distToEdge(x,y);
-        if(d<=60) z1pts++;
-        else if(d<=120) z2pts++;
+      // Pour chaque colonne, échantillonner en hauteur
+      for(let h=STEPy/2; h<H; h+=STEPy){
+        const z = getZone(x, y, h);
+        if(z===0) z0v += cellV;
+        else if(z===1) z1v += cellV;
+        else if(z===2) z2v += cellV;
       }
     }
   }
-  let z0H=0.5;
-  const genZ=SC.sanitaires.filter(s=>CAT_SAN[s.type]?.genZone);
-  if(genZ.length){
-    z0H = genZ.reduce((a,s)=>a+(CAT_SAN[s.type].h3||.5),0)/genZ.length;
-  }
-  const z0v=z0pts*cell*z0H;
-  const z1v=z1pts*cell*Math.min(H,ZH);
-  const z2v=z2pts*cell*Math.min(H,ZH);
   return {roomVol, z0:z0v, z1:z1v, z2:z2v, hors:Math.max(0,roomVol-z0v-z1v-z2v)};
 }
 
@@ -1888,9 +2662,10 @@ function fit3DCamera(){
   CAM3D.targetX = (mnx+mxx)/2;
   CAM3D.targetZ = (mny+mxy)/2;
   CAM3D.targetY = (SC.roomH||2.5)/2;
-  CAM3D.dist = Math.max(mxx-mnx, mxy-mny) * 1.4 + 2;
+  // Distance plus grande car FOV serré (25° au lieu de 50°)
+  CAM3D.dist = Math.max(mxx-mnx, mxy-mny) * 3.0 + 4;
   CAM3D.yaw = 0.6;
-  CAM3D.pitch = -0.4;
+  CAM3D.pitch = -0.5;  // angle plus marqué pour effet axonométrique
 }
 
 function reset3D(){ fit3DCamera(); }
@@ -2176,7 +2951,8 @@ function loop3D(){
 
   // Caméra
   const aspect = cv.width / cv.height;
-  const proj = M3.perspective(50*Math.PI/180, aspect, 0.05, 100);
+  // FOV plus serré = moins de distorsion perspective = effet axonométrique/BIM
+  const proj = M3.perspective(25*Math.PI/180, aspect, 0.05, 100);
   const view = M3.viewFromOrbit(
     [CAM3D.targetX, CAM3D.targetY, CAM3D.targetZ],
     CAM3D.yaw, CAM3D.pitch, CAM3D.dist
