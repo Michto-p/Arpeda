@@ -13,6 +13,7 @@ function addEl(type){
   }
   const id=++SC.idSeq;
   const el={id, type, x:cx, y:cy, h:c.defH||1.0, ip:c.ip, cl:c.cl};
+  if(c.mount==='wall') elMountToWall(el, 99);
   el.zone=getZone(el.x,el.y,el.h);
   el.distCm=distToV0(el.x,el.y);
   SC.electrique.push(el);
@@ -107,4 +108,33 @@ function closePS(name){
   if(name==='wall'){ selWallIdx=-1; redraw('draw'); }
   if(name==='op'){ selOpId=-1; redraw('open'); }
   if(STUDIO.active) studioPanelRefresh();
+}
+
+// ── Appareillage mural : plaqué contre la face intérieure d'un mur ──
+// el.rot = angle tel que l'axe local +y (profondeur) pointe vers l'intérieur de la pièce :
+// la plaque occupe x∈[-pw/2, pw/2], y∈[0, pd] autour de (el.x, el.y) = point de la face du mur.
+function elMountToWall(el, maxD=0.6){
+  const c=CAT_EL[el.type]; if(!c || c.mount!=='wall') return false;
+  let best=null;
+  SC.walls.forEach(w=>{
+    const pts = w.closed ? [...w.pts, w.pts[0]] : w.pts;
+    const comp = w.comp ? COMP_LIB[w.comp] : null;
+    const T = comp ? compThickness(comp) : (w.kind==='int' ? 0.10 : 0.20);
+    for(let si=0; si<pts.length-1; si++){
+      const a=pts[si], b=pts[si+1], len=Math.hypot(b.x-a.x,b.y-a.y); if(len<0.05) continue;
+      const ux=(b.x-a.x)/len, uy=(b.y-a.y)/len;
+      const along=Math.max(0,Math.min(len,(el.x-a.x)*ux+(el.y-a.y)*uy));
+      const px=a.x+ux*along, py=a.y+uy*along;
+      let nx=-uy, ny=ux;
+      if(w.closed){
+        if(!ptInPoly(px+nx*0.1, py+ny*0.1, w.pts)){ nx=-nx; ny=-ny; }       // vers l'intérieur
+      } else if((el.x-px)*nx+(el.y-py)*ny < 0){ nx=-nx; ny=-ny; }             // cloison : côté de l'appareil
+      const fx=px+nx*T/2, fy=py+ny*T/2, d=Math.hypot(el.x-fx, el.y-fy);
+      if(d<maxD && (!best || d<best.d)) best={d,fx,fy,nx,ny};
+    }
+  });
+  if(!best) return false;
+  el.x=best.fx; el.y=best.fy;
+  el.rot=Math.atan2(best.ny,best.nx)-Math.PI/2;
+  return true;
 }

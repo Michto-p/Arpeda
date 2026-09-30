@@ -19,13 +19,13 @@ const CAT_SAN = {
 const CAT_EL = {
   dcl:     {label:'DCL plafond',    ico:'🔵', zones:[0,1,2,'hors'],minH:2.20,ip:'IP44',cl:'II',defH:2.45},
   spot:    {label:'Spot encastré',  ico:'💡', zones:[0,1,2,'hors'],minH:2.00,ip:'IP44',cl:'II',defH:2.45},
-  applique:{label:'Applique',       ico:'🔦', zones:[2,'hors'],    minH:2.25,ip:'IP44',cl:'II',defH:2.30},
+  applique:{label:'Applique',       ico:'🔦', zones:[2,'hors'],    minH:2.25,ip:'IP44',cl:'II',defH:2.30, mount:'wall',pw:.12,ph:.12,pd:.10},
   hublot:  {label:'Hublot',         ico:'⭕', zones:[1,2,'hors'],  minH:2.00,ip:'IP44',cl:'II',defH:2.10},
-  prise:   {label:'Prise 16A',      ico:'🔌', zones:['hors'],minDist:120,minH:.95,maxH:1.30,ip:'IP21',cl:'II',defH:1.05},
-  inter:   {label:'Interrupteur',   ico:'🔆', zones:['hors'],minDist:60, minH:.90,maxH:1.30,ip:'IP21',cl:'II',defH:1.10},
+  prise:   {label:'Prise 16A',      ico:'🔌', zones:['hors'],minDist:120,minH:.95,maxH:1.30,ip:'IP21',cl:'II',defH:1.05, mount:'wall',pw:.08,ph:.08,pd:.028},
+  inter:   {label:'Interrupteur',   ico:'🔆', zones:['hors'],minDist:60, minH:.90,maxH:1.30,ip:'IP21',cl:'II',defH:1.10, mount:'wall',pw:.08,ph:.08,pd:.022},
   seche:   {label:'Sèche-serv.',    ico:'♨️', zones:[1,2],         minH:.30, ip:'IP44',cl:'II',defH:1.20},
   vmc:     {label:'VMC',            ico:'🌀', zones:[0,1,2,'hors'],minH:2.20,ip:'IP45',cl:'II',defH:2.45},
-  tableau: {label:'Tableau élec.',  ico:'⚡', zones:['hors'],minDist:120,ip:'IP21',cl:'II',defH:1.50},
+  tableau: {label:'Tableau élec.',  ico:'⚡', zones:['hors'],minDist:120,ip:'IP21',cl:'II',defH:1.50, mount:'wall',pw:.36,ph:.50,pd:.12},
 };
 
 const STEP_TITLES = ['Tracer les murs','Portes & fenêtres','Sanitaires','Appareillage','Vue 3D','Vérification','Exercice','Rapport de contrôle'];

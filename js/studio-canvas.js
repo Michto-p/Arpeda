@@ -269,7 +269,7 @@ function stCreateWall(pts, closed){
   for(const p of pts){ if(!clean.length || _d(p,clean[clean.length-1])>0.01) clean.push({x:p.x,y:p.y}); }
   if(closed && clean.length>1 && _d(clean[0],clean[clean.length-1])<0.01) clean.pop();
   if(clean.length<(closed?3:2)) return -1;
-  SC.walls.push({pts:clean, closed, kind:closed?'ext':'int', comp:closed?'mur_brique_classique':'cloison_72_48'});
+  SC.walls.push({pts:clean, closed, kind:closed?'ext':'int', comp:closed?DEFAULT_WALL:DEFAULT_PARTITION});
   return SC.walls.length-1;
 }
 
@@ -345,7 +345,7 @@ function stPlaceItem(it, p){
     addMeuble(it.type); const o=SC.meubles[SC.meubles.length-1]; o.x=p.x; o.y=p.y; stMagnet(o,CAT_MEUBLE[o.type]); id=o.id;
     refreshElements(); openMeubleProp(id);
   } else if(it.kind==='el'){
-    addEl(it.type); const o=SC.electrique[SC.electrique.length-1]; o.x=p.x; o.y=p.y; id=o.id;
+    addEl(it.type); const o=SC.electrique[SC.electrique.length-1]; o.x=p.x; o.y=p.y; elMountToWall(o, 0.8); id=o.id;
     refreshElements(); openElProp(id);
   } else if(it.kind==='op'){
     const hit=stNearestSeg(p, 0.45);
@@ -600,7 +600,7 @@ function stDragTo(p){
     if(ST.opts.snap&&!ST.noSnap&&ST.opts.grid){ const g=stGridStep()/ (d.of==='el'?1:2); x=Math.round(x/g)*g; y=Math.round(y/g)*g; }
     o.x=x; o.y=y;
     if(d.of==='san') stMagnet(o,CAT_SAN[o.type]); else if(d.of==='meu') stMagnet(o,CAT_MEUBLE[o.type]);
-    if(d.of==='el'){ o.zone=getZone(o.x,o.y,o.h); o.distCm=distToV0(o.x,o.y); }
+    if(d.of==='el'){ elMountToWall(o, 0.8); o.zone=getZone(o.x,o.y,o.h); o.distCm=distToV0(o.x,o.y); }
     else refreshElements();
     if(d.of==='san') updateSanProp(o.id); else if(d.of==='meu') updateMeubleProp(o.id); else updateElProp(o.id);
   } else if(d.kind==='arA'){
@@ -635,7 +635,7 @@ function stFinishRect(b){
   const w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
   if(w<0.3||h<0.3){ toast('Pièce trop petite'); redraw('studio'); return; }
   // mode utile : le rectangle saisi est l'intérieur de la pièce, les murs s'ajoutent autour
-  const e = stDimInt() ? stWallThick({comp:'mur_brique_classique'})/2 : 0;
+  const e = stDimInt() ? stWallThick({comp:DEFAULT_WALL})/2 : 0;
   const x0=Math.min(a.x,b.x)-e, y0=Math.min(a.y,b.y)-e, W=w+2*e, H=h+2*e;
   const wi=stCreateWall([{x:x0,y:y0},{x:x0+W,y:y0},{x:x0+W,y:y0+H},{x:x0,y:y0+H}], true);
   histCommit(); setStudioTool('select'); stSelect({kind:'wall',wi,si:0}); if(SC.walls.length===1) fitView('studio'); redraw('studio'); histCommit();
@@ -881,14 +881,16 @@ function stDrawDims(ctx, v){
         stDimLine(ctx,v,P(a,off),P(b,off),[P(a,T/2+0.04),P(a,off+0.08)],[P(b,T/2+0.04),P(b,off+0.08)],len.toFixed(2)+' m','rgba(125,211,252,.85)',isSel(si)&&mode!=='int');
       }
     }
-    // cotes utiles (entre parements), à l'intérieur
+    // cotes utiles (entre parements) : lignes à l'extérieur, traits de rappel jusqu'aux faces intérieures
     if(w.closed && mode!=='axe'){
       const ring=stInnerRing(w);
+      const row = T/2 + 0.32 + (mode==='both' ? 0.40 : 0);      // décalage depuis l'axe ; 2e rangée si « les deux »
       for(let si=0;si<n;si++){
         const P=ring[si], Q=ring[(si+1)%n], len=_d(P,Q);
         if(len<0.3 || len*v.sc<50) continue;
-        const nrm=stInwardNormal(w,si), e=0.24, mv=(pt,d)=>({x:pt.x+nrm.x*d,y:pt.y+nrm.y*d});
-        stDimLine(ctx,v,mv(P,e),mv(Q,e),[P,mv(P,e+0.06)],[Q,mv(Q,e+0.06)],len.toFixed(2)+' m','rgba(134,239,172,.85)',isSel(si));
+        const inw=stInwardNormal(w,si), out={x:-inw.x,y:-inw.y}, shift=T/2+row;   // de l'anneau intérieur à la ligne de cote
+        const mv=(pt,d)=>({x:pt.x+out.x*d,y:pt.y+out.y*d});
+        stDimLine(ctx,v,mv(P,shift),mv(Q,shift),[mv(P,T+0.04),mv(P,shift+0.08)],[mv(Q,T+0.04),mv(Q,shift+0.08)],len.toFixed(2)+' m','rgba(134,239,172,.85)',isSel(si));
       }
     }
     if(w.closed){

@@ -20,7 +20,7 @@ function kitWallPoints(){
       const ops=SC.openings.filter(o=>o.wi===wi&&o.si===si);
       for(let d=0.30; d<=len-0.30+1e-9; d+=0.05){
         if(ops.some(o=>Math.abs(o.t*len-d) < o.w/2+0.15)) continue;
-        out.push({x:a.x+u.x*d+n.x*(T/2+0.04), y:a.y+u.y*d+n.y*(T/2+0.04), wi, si, d});
+        out.push({x:a.x+u.x*d+n.x*(T/2), y:a.y+u.y*d+n.y*(T/2), wi, si, d});
       }
     }
   });
@@ -42,6 +42,7 @@ function kitBlocked(x,y){
 
 function kitPush(el){
   el.id=++SC.idSeq;
+  elMountToWall(el, 0.3);       // plaqué contre le mur, orienté vers la pièce
   SC.electrique.push(el);
   return el;
 }
@@ -70,7 +71,7 @@ function kitPlaceSwitch(){
     const len=_d(a,b), u=_unit(b.x-a.x,b.y-a.y), side=(op.hinge||'l')==='l'?1:-1;
     const s=op.t*len+side*(op.w/2+0.22);
     const n=stInwardNormal(w,op.si), T=stWallThick(w);
-    target={x:a.x+u.x*s+n.x*(T/2+0.04), y:a.y+u.y*s+n.y*(T/2+0.04)};
+    target={x:a.x+u.x*s+n.x*(T/2), y:a.y+u.y*s+n.y*(T/2)};
   }
   const ref=target || {x:cands[0].x, y:cands[0].y};
   return kitBest('inter', cands, p=>-_d(p,ref), true);

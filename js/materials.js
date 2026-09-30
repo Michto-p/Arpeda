@@ -56,6 +56,16 @@ const COMP_LIB = {
       {mat:'ba13',       e:0.013},
     ]
   },
+  mur_cellulaire_15: {
+    label:'Mur béton cellulaire 14 (16 cm)',
+    kind:'ext',
+    desc:'Enduit + béton cellulaire 14 + enduit : mur porteur léger',
+    layers:[
+      {mat:'enduit_int', e:0.01},
+      {mat:'beton_cell', e:0.14},
+      {mat:'enduit_int', e:0.01},
+    ]
+  },
   mur_parpaing_iti: {
     label:'Parpaing + ITI',
     kind:'ext',
@@ -162,6 +172,10 @@ const COMP_LIB = {
     ]
   },
 };
+
+// Compositions par défaut des nouveaux murs (fines : plan lisible, parements proches des objets)
+const DEFAULT_WALL = 'mur_cellulaire_15';
+const DEFAULT_PARTITION = 'cloison_72_48';
 
 // COMPOSITIONS DE MENUISERIES
 const MENUI_LIB = {

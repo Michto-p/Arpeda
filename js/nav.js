@@ -8,7 +8,7 @@ function enterApp(){
   document.getElementById('app').style.display='flex';
   // Pré-créer une pièce 3×2.4m si vide
   if(!SC.walls.length){
-    SC.walls=[{pts:[{x:0,y:0},{x:3,y:0},{x:3,y:2.4},{x:0,y:2.4}],closed:true,kind:"ext",comp:"mur_brique_classique"}];
+    SC.walls=[{pts:[{x:0,y:0},{x:3,y:0},{x:3,y:2.4},{x:0,y:2.4}],closed:true,kind:"ext",comp:DEFAULT_WALL}];
   }
   goStep(0);
 }

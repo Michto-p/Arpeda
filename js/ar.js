@@ -645,6 +645,12 @@ function arLoop(t,frame){
         const errs=checkEl(e).errs;
         const ok=hideChecks() || errs.length===0;
         const tint = hideChecks()?[0.38,0.65,0.98]:(ok?COL_OK:COL_ERR);
+        if(c.mount==='wall' && typeof e.rot==='number'){
+          const base=AM.mul(wM(e.x,e.h,e.y), AM.RY(-e.rot));
+          arDM(proj,viewM,AM.mul(base,AM.mul(AM.T(0,0,c.pd/2*sc),AM.S(c.pw*sc,c.ph,c.pd*sc))),arGeo.cube,0.98,hideChecks()?[0.93,0.93,0.95]:[0.93,0.93,0.95]);
+          arDM(proj,viewM,AM.mul(base,AM.mul(AM.T(0,0,(c.pd+0.002)*sc),AM.S(c.pw*0.55*sc,c.ph*0.55,0.004*sc))),arGeo.cube,0.98,tint);
+          continue;
+        }
         // Boîtier principal
         arBox(e.x, e.h, e.y, 0.10, 0.04, 0.10, 0.95, tint);
         // Halo conformité

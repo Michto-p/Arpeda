@@ -489,6 +489,14 @@ function loop3D(){
       if(!c) continue;
       const {errs, warns} = checkEl(e);
       const col = hideChecks() ? [0.38, 0.65, 0.98] : errs.length ? [0.95, 0.27, 0.27] : (warns.length ? [0.96, 0.62, 0.04] : [0.13, 0.78, 0.36]);
+      if(c.mount==='wall' && typeof e.rot==='number'){
+        // plaque dos au mur : axe local z = profondeur vers l'intérieur de la pièce
+        const base = M3.mul(M3.T(e.x, e.h, e.y), M3.RY(e.rot));
+        draw3DBox(proj, view, M3.mul(base, M3.mul(M3.T(0,0,c.pd/2), M3.S(c.pw, c.ph, c.pd))), hideChecks()?col:[0.93,0.93,0.95], 1.0);
+        draw3DBox(proj, view, M3.mul(base, M3.mul(M3.T(0,0,c.pd+0.002), M3.S(c.pw*0.55, c.ph*0.55, 0.004))), col, 1.0);
+        if(errs.length && !hideChecks()) draw3DBox(proj, view, M3.mul(base, M3.mul(M3.T(0,0,0.004), M3.S(c.pw*1.5, c.ph*1.5, 0.008))), [0.95,0.27,0.27], 0.5);
+        continue;
+      }
       // Boîtier
       const m = M3.mul(M3.T(e.x, e.h, e.y), M3.S(0.10, 0.04, 0.10));
       draw3DBox(proj, view, m, col, 1.0);

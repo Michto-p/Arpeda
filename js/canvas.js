@@ -104,7 +104,7 @@ function setupCanvasEvents(name, cv){
         curPoly.push(sp);
         if(curPoly.length===2){
           const [a,b]=curPoly;
-          SC.walls.push({pts:[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}],closed:true,kind:"ext",comp:"mur_brique_classique"});
+          SC.walls.push({pts:[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}],closed:true,kind:"ext",comp:DEFAULT_WALL});
           curPoly=[];
         }
       }
@@ -208,6 +208,7 @@ function setupCanvasEvents(name, cv){
         const el=SC.electrique.find(e=>e.id===dragId);
         if(el){
           el.x=p.x+dragOff.x; el.y=p.y+dragOff.y;
+          elMountToWall(el, 0.8);
           el.zone=getZone(el.x,el.y,el.h);
           el.distCm=distToV0(el.x,el.y);
           updateElProp(dragId);

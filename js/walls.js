@@ -16,7 +16,7 @@ function setTool(t){
 }
 
 function closePoly(){
-  if(curPoly.length>=3) SC.walls.push({pts:[...curPoly],closed:true,kind:"ext",comp:"mur_brique_classique"});
+  if(curPoly.length>=3) SC.walls.push({pts:[...curPoly],closed:true,kind:"ext",comp:DEFAULT_WALL});
   curPoly=[];
   redraw('draw');
 }
@@ -94,7 +94,7 @@ function hitOp(x, y){
 
 function openWallProp(idx){
   const w=SC.walls[idx]; if(!w) return;
-  if(!w.comp) w.comp = w.kind==='int' ? 'cloison_72_48' : 'mur_brique_classique';
+  if(!w.comp) w.comp = w.kind==='int' ? DEFAULT_PARTITION : DEFAULT_WALL;
   document.getElementById('psWall').classList.add('open');
   document.getElementById('psWallTitle').textContent = `Mur ${idx+1}`;
   updateWallProp(idx);
@@ -162,7 +162,7 @@ function setWallProp(idx, k, v){
   if(k==='kind'){
     const cur = COMP_LIB[w.comp];
     if(!cur || cur.kind !== v){
-      w.comp = v==='int' ? 'cloison_72_48' : 'mur_brique_classique';
+      w.comp = v==='int' ? DEFAULT_PARTITION : DEFAULT_WALL;
     }
   }
   redraw('draw');
@@ -318,7 +318,7 @@ async function applyRoomDlg(){
     const x0=Math.min(...rw.pts.map(p=>p.x)), y0=Math.min(...rw.pts.map(p=>p.y));
     rw.pts=pts.map(p=>({x:p.x+x0,y:p.y+y0}));
   } else {
-    SC.walls=[{pts,closed:true,kind:'ext',comp:'mur_brique_classique'}];
+    SC.walls=[{pts,closed:true,kind:'ext',comp:DEFAULT_WALL}];
     SC.openings=[];
   }
   SC.roomH=h;

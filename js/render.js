@@ -481,11 +481,41 @@ function drawSanShape(ctx, type, x, y, w, h, sel, c){
   }
 }
 
+// Appareillage mural : plaque à l'échelle, dos contre la face du mur, + symbole de plan
+function drawWallDevice(ctx, v, e, c, col, sel){
+  const k=Math.max(1, 11/(c.pw*v.sc));                   // pas plus petit que ~11 px à faible zoom
+  const pw=c.pw*k, pd=c.pd*Math.min(k,2.2);
+  const cs=Math.cos(e.rot), sn=Math.sin(e.rot);
+  const P=(lx,ly)=>mToScreen(e.x+lx*cs-ly*sn, e.y+lx*sn+ly*cs, v);
+  const q=[P(-pw/2,0),P(pw/2,0),P(pw/2,pd),P(-pw/2,pd)];
+  if(sel){ ctx.beginPath(); const C=P(0,pd/2); ctx.arc(C.x,C.y,Math.max(16,pw*v.sc*0.9),0,Math.PI*2); ctx.strokeStyle='#60a5fa'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.beginPath(); q.forEach((s,i)=>i?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y)); ctx.closePath();
+  ctx.fillStyle='#e5e7eb'; ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=sel?2.2:1.6; ctx.stroke();
+  // symbole en saillie dans la pièce
+  ctx.strokeStyle=col; ctx.lineWidth=1.4; ctx.fillStyle=col;
+  const r=Math.max(3.2, pw*v.sc*0.22), O=P(0,pd), T2=P(0,pd+pw*0.5);
+  if(e.type==='prise'){
+    ctx.beginPath(); ctx.arc(O.x,O.y,r,0,Math.PI*2); ctx.stroke();
+    const a=P(-pw*0.18,pd), b=P(pw*0.18,pd); ctx.beginPath(); ctx.arc(a.x,a.y,1.3,0,Math.PI*2); ctx.arc(b.x,b.y,1.3,0,Math.PI*2); ctx.fill();
+  } else if(e.type==='inter'){
+    ctx.beginPath(); ctx.arc(O.x,O.y,r,0,Math.PI*2); ctx.stroke();
+    const L=P(pw*0.5,pd+pw*0.55); ctx.beginPath(); ctx.moveTo(O.x,O.y); ctx.lineTo(L.x,L.y); ctx.stroke();
+  } else if(e.type==='tableau'){
+    ctx.beginPath(); ctx.moveTo(q[0].x,q[0].y); ctx.lineTo(q[2].x,q[2].y); ctx.moveTo(q[1].x,q[1].y); ctx.lineTo(q[3].x,q[3].y); ctx.stroke();
+  } else { ctx.beginPath(); ctx.arc(O.x,O.y,r,0,Math.PI*2); ctx.fill(); }
+  // pastille d'état + hauteur (sélection ou fort zoom)
+  const S0=P(pw*0.65,pd+pw*0.65);
+  ctx.beginPath(); ctx.arc(S0.x,S0.y,3.2,0,Math.PI*2); ctx.fillStyle=col; ctx.fill(); ctx.strokeStyle='#0a1221'; ctx.lineWidth=1; ctx.stroke();
+  if(sel || v.sc>=160){ ctx.font='bold 8px ui-monospace,monospace'; ctx.fillStyle=col; ctx.textAlign='center'; ctx.fillText((e.h||1).toFixed(2)+' m', T2.x, T2.y+10); }
+  drawNumBadge(ctx, S0.x+7, S0.y-7, exoNum(e));
+}
+
 function drawElec(ctx, v){
   for(const e of SC.electrique){
     const c=CAT_EL[e.type]; if(!c) continue;
     const {errs,warns}=checkEl(e);
     const col=hideChecks()?'#60a5fa':errs.length?'#ef4444':warns.length?'#f59e0b':'#22c55e';
+    if(c.mount==='wall' && typeof e.rot==='number'){ drawWallDevice(ctx,v,e,c,col,e.id===selElId); continue; }
     const sp=mToScreen(e.x,e.y,v);
     const R=Math.max(11, v.sc*0.10);
     const sel=(e.id===selElId);

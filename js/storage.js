@@ -88,6 +88,7 @@ function applyScene(sc, opts){
 // Recalcule zone / distance à l'eau (champs dérivés, non fiables après import)
 function refreshElements(){
   for(const el of SC.electrique){
+    if(typeof el.rot==='number') elMountToWall(el, 0.35);   // appareillage mural : reste plaqué
     el.zone = getZone(el.x, el.y, el.h);
     el.distCm = distToV0(el.x, el.y);
   }

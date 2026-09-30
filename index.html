@@ -18,6 +18,8 @@
   <div id="homeMain" class="h-col">
     <button class="h-btn primary only-desktop" onclick="newProject()">✦ Nouveau projet</button>
     <button class="h-btn primary only-mobile" onclick="startARFromHome()">📷 Voir en RA</button>
+    <button class="h-btn secondary only-desktop" onclick="loadExample('ok')">📋 Exemple type (salle d'eau conforme)</button>
+    <button class="h-btn secondary only-desktop" onclick="loadExample('erreurs')">📋 Exemple avec erreurs (exercice)</button>
     <button class="h-btn secondary" id="btnResume" style="display:none" onclick="resumeProject()">↻ Reprendre le projet</button>
     <button class="h-btn secondary" onclick="importProject()">📂 Ouvrir un projet ou un exercice</button>
     <button class="h-btn ghost only-mobile" onclick="newProject()">✏️ Édition simplifiée (téléphone)</button>
@@ -376,6 +378,8 @@
     </nav>
     <div class="st-sp"></div>
     <div class="st-grp">
+      <button class="st-btn wide" onclick="loadExample('ok')" title="Charger une salle d'eau complète et conforme">📋 Exemple</button>
+      <button class="st-btn wide" onclick="loadExample('erreurs')" title="Même salle d'eau avec des erreurs à trouver (exercice)">📋 Exemple à erreurs</button>
       <button class="st-btn wide" onclick="studioShareAR()" title="Générer le lien / QR pour le téléphone">📱 Envoyer à la RA</button>
       <button class="st-btn wide" onclick="exportProject()" title="Exporter le projet (.json)">💾 Exporter</button>
       <button class="st-btn wide" onclick="importProject()" title="Importer un projet">📂 Importer</button>
@@ -516,6 +520,7 @@
 <script src="js/history.js"></script>
 <script src="js/studio.js"></script>
 <script src="js/kit.js"></script>
+<script src="js/example.js"></script>
 <script src="js/studio-canvas.js"></script>
 <script src="js/main.js"></script>
 </body>
