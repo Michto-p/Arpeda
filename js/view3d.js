@@ -400,7 +400,7 @@ function loop3D(){
   if(v3DLayers.san){
     for(const s of SC.sanitaires){
       const c = CAT_SAN[s.type];
-      const h = c.h3 || 0.5;
+      const h = sanH(s);
       const colors = {
         baignoire: [0.85, 0.92, 0.96],
         douche_it: [0.55, 0.75, 0.92],
@@ -455,7 +455,7 @@ function loop3D(){
             for(const s of sanZ){
               const c = CAT_SAN[s.type];
               if(cx>=s.x-c.w/2 && cx<=s.x+c.w/2 && cz>=s.y-c.d/2 && cz<=s.y+c.d/2){
-                h0 = c.h3 || 0.5;
+                h0 = sanH(s);
                 break;
               }
             }
@@ -468,6 +468,17 @@ function loop3D(){
           }
         }
       }
+    }
+  }
+
+  // ── MEUBLES ──
+  if(v3DLayers.san){
+    for(const m of SC.meubles){
+      const c = CAT_MEUBLE[m.type];
+      const r = checkMeuble(m);
+      const col = r.errs.length ? [0.95,0.35,0.35] : r.warns.length ? [0.95,0.7,0.25] : c.col;
+      const base = M3.mul(M3.T(m.x, m.z + m.hgt/2, m.y), M3.RY(m.rot||0));
+      draw3DBox(proj, view, M3.mul(base, M3.S(c.w, m.hgt, c.d)), col, 0.95);
     }
   }
 
@@ -498,7 +509,7 @@ function loop3D(){
   document.getElementById('info3D').innerHTML =
     `<b>Vue 3D</b> — ${rW.toFixed(1)}×${rD.toFixed(1)}×${RH.toFixed(2)}m`;
   document.getElementById('info3D2').innerHTML =
-    `<b>${SC.sanitaires.length}</b> san · <b>${SC.electrique.length}</b> él`;
+    `<b>${SC.sanitaires.length}</b> san · <b>${SC.meubles.length}</b> meu · <b>${SC.electrique.length}</b> él`;
 }
 
 // Rendu d'un segment de mur avec ses ouvertures découpées
@@ -567,19 +578,16 @@ function drawWallSegment(proj, view, a, b, height, thickness, ops){
 
   // 2. Au-dessus de chaque ouverture (linteau jusqu'au plafond)
   for(const cut of cuts){
-    const op = cut.op;
-    const oh = (op.type === 'door' || op.type === 'wide') ? 2.10 : 2.30;
+    const oh = opGeom(cut.op).y1;
     if(oh < height){
       drawBlock(cut.s, cut.e, oh, height - oh, wallCol, 0.95);
     }
   }
 
-  // 3. Sous chaque fenêtre (allège 0 → 1.10m)
+  // 3. Sous chaque ouverture surélevée (allège)
   for(const cut of cuts){
-    const op = cut.op;
-    if(op.type === 'window'){
-      drawBlock(cut.s, cut.e, 0, 1.10, wallCol, 0.95);
-    }
+    const y0 = opGeom(cut.op).y0;
+    if(y0 > 0.001) drawBlock(cut.s, cut.e, 0, y0, wallCol, 0.95);
   }
 
   // 4. Indicateurs visuels des ouvertures
@@ -591,20 +599,20 @@ function drawWallSegment(proj, view, a, b, height, thickness, ops){
     const px = a.x + dx * tMid;
     const pz = a.y + dz * tMid;
     if(op.type === 'window'){
-      // Vitrage bleuté entre 1.10m et 2.30m
-      const m = M3.mul(M3.mul(M3.T(px, 1.10 + 1.20/2, pz), M3.RY(angle)), M3.S(thickness*0.5, 1.20, len*0.95));
+      const g = opGeom(op);
+      const m = M3.mul(M3.mul(M3.T(px, (g.y0+g.y1)/2, pz), M3.RY(angle)), M3.S(thickness*0.5, g.y1-g.y0, len*0.95));
       draw3DBox(proj, view, m, [0.40, 0.70, 0.95], 0.55);
       // Cadre fenêtre
-      const fr1 = M3.mul(M3.mul(M3.T(px, 1.10, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.04, len));
+      const fr1 = M3.mul(M3.mul(M3.T(px, g.y0, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.04, len));
       draw3DBox(proj, view, fr1, [0.85, 0.85, 0.90], 1.0);
-      const fr2 = M3.mul(M3.mul(M3.T(px, 2.30, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.04, len));
+      const fr2 = M3.mul(M3.mul(M3.T(px, g.y1, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.04, len));
       draw3DBox(proj, view, fr2, [0.85, 0.85, 0.90], 1.0);
     } else {
       // Porte : encadrement + repère au sol
       const seuilM = M3.mul(M3.mul(M3.T(px, 0.01, pz), M3.RY(angle)), M3.S(thickness*1.2, 0.02, len));
       draw3DBox(proj, view, seuilM, [0.55, 0.40, 0.20], 1.0);
       const lintCol = [0.65, 0.55, 0.40];
-      const lintM = M3.mul(M3.mul(M3.T(px, 2.10, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.06, len));
+      const lintM = M3.mul(M3.mul(M3.T(px, opGeom(op).y1, pz), M3.RY(angle)), M3.S(thickness*1.1, 0.06, len));
       draw3DBox(proj, view, lintM, lintCol, 1.0);
     }
   }

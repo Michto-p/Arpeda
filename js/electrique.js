@@ -102,7 +102,7 @@ function closePS(name){
   const id = 'ps'+name[0].toUpperCase()+name.slice(1);
   const el = document.getElementById(id);
   if(el) el.classList.remove('open');
-  if(name==='san'){ selSanId=-1; redraw('san'); }
+  if(name==='san'){ selSanId=-1; selMeuId=-1; redraw('san'); }
   if(name==='el'){ selElId=-1; redraw('el'); }
   if(name==='wall'){ selWallIdx=-1; redraw('draw'); }
   if(name==='op'){ selOpId=-1; redraw('open'); }

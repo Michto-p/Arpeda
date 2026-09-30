@@ -38,6 +38,7 @@ function sanitizeScene(sc){
     if(!Array.isArray(sc[k])) throw new Error('Champ manquant : '+k);
     return sc[k];
   };
+  if(!Array.isArray(sc.meubles)) sc.meubles = [];
   const walls = arr('walls'), openings = arr('openings');
   const sanitaires = arr('sanitaires'), electrique = arr('electrique');
 
@@ -55,17 +56,20 @@ function sanitizeScene(sc){
   for(const e of electrique){
     if(!e || !CAT_EL[e.type] || !_isNum(e.x) || !_isNum(e.y) || !_isNum(e.h)) throw new Error('Appareil invalide');
   }
+  for(const m of sc.meubles){
+    if(!m || !CAT_MEUBLE[m.type] || !_isNum(m.x) || !_isNum(m.y) || !_isNum(m.z) || !_isNum(m.hgt)) throw new Error('Meuble invalide');
+  }
   const roomH = _isNum(sc.roomH) ? Math.min(3.5, Math.max(2.0, sc.roomH)) : 2.5;
-  const maxId = Math.max(0, ...[...openings, ...sanitaires, ...electrique].map(x=>_isNum(x.id)?x.id:0));
+  const maxId = Math.max(0, ...[...openings, ...sanitaires, ...electrique, ...sc.meubles].map(x=>_isNum(x.id)?x.id:0));
   const idSeq = Math.max(maxId, _isNum(sc.idSeq) ? sc.idSeq : 0);
-  return {walls, openings, sanitaires, electrique, roomH, idSeq, install: normalizeInstall(sc.install)};
+  return {walls, openings, sanitaires, electrique, meubles: sc.meubles, roomH, idSeq, install: normalizeInstall(sc.install)};
 }
 
 function applyScene(sc){
   const clean = sanitizeScene(sc);
   Object.assign(SC, clean);
   curPoly = [];
-  selSanId = -1; selElId = -1; selWallIdx = -1; selOpId = -1;
+  selSanId = -1; selElId = -1; selMeuId = -1; selWallIdx = -1; selOpId = -1;
   for(const k in VIEWS) VIEWS[k].init = false;
   refreshElements();
   const rng = document.getElementById('rngH');
@@ -120,7 +124,7 @@ function resumeProject(){
 async function newProject(){
   const snap = readSaved();
   if(snap && !await askConfirm('Un projet sauvegardé existe. Le remplacer par un nouveau projet ?')) return;
-  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], roomH:2.5, idSeq:0, install:normalizeInstall(null)});
+  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], meubles:[], roomH:2.5, idSeq:0, install:normalizeInstall(null)});
   applyScene(SC);
   enterApp();
 }

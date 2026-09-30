@@ -68,6 +68,10 @@ function updateSanProp(id){
       <b>X: ${s.x.toFixed(2)} · Y: ${s.y.toFixed(2)} m</b>
     </div>
     <div class="pf">
+      <div class="pf-l">Hauteur / rebord (m)</div>
+      <input type="number" value="${sanH(s).toFixed(2)}" step="0.05" min="0.01" max="1.2" onchange="setSanH(${id},+this.value)">
+    </div>
+    <div class="pf">
       <div class="pf-l">Rotation : ${rotDeg}°</div>
       <input type="range" min="0" max="360" step="15" value="${rotDeg}"
         oninput="setSanRot(${id}, +this.value)" style="accent-color:var(--ac)">
@@ -90,6 +94,10 @@ function resetPommeau(id){
   redraw('san');
 }
 
+function setSanH(id,v){
+  const s=SC.sanitaires.find(x=>x.id===id); if(!s||!(v>0)) return;
+  s.hh=v; updateSanProp(id); redraw('san');
+}
 function setSanRot(id, deg){
   const s=SC.sanitaires.find(x=>x.id===id); if(!s) return;
   s.rot = deg*Math.PI/180;

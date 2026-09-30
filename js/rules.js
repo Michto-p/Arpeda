@@ -137,8 +137,14 @@ function evaluateProject(){
   const items = SC.electrique.map(el=>{
     const r = checkEl(el);
     errs += r.errs.length; warns += r.warns.length;
-    return {el, ...r};
+    return {el, kind:'el', cat:CAT_EL[el.type], ...r};
   });
+  for(const m of SC.meubles){
+    if(!CAT_MEUBLE[m.type].elec) continue;
+    const r = checkMeuble(m);
+    errs += r.errs.length; warns += r.warns.length;
+    items.push({el:m, kind:'meuble', cat:CAT_MEUBLE[m.type], ...r});
+  }
   const install = checkInstallation();
   for(const f of install){ if(f.level==='err') errs++; else if(f.level==='warn') warns++; }
   const circuits = checkCircuits();

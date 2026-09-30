@@ -64,8 +64,15 @@ function reportPlanSVG(statusByEl){
     parts.push(`<g transform="rotate(${deg} ${X(s.x)} ${Y(s.y)})"><rect x="${X(s.x-c.w/2)}" y="${Y(s.y-c.d/2)}" width="${(c.w*S).toFixed(1)}" height="${(c.d*S).toFixed(1)}" rx="6" fill="rgba(226,232,240,.55)" stroke="#64748b" stroke-width="2"/>`
       +`<text x="${X(s.x)}" y="${Y(s.y)}" font-size="13" text-anchor="middle" dominant-baseline="middle" fill="#334155" font-family="sans-serif">${_esc(c.label)}</text></g>`);
   }
+  // Meubles
+  for(const m of SC.meubles){
+    const c=CAT_MEUBLE[m.type]; if(!c) continue;
+    const deg=((m.rot||0)*180/Math.PI).toFixed(1);
+    parts.push(`<g transform="rotate(${deg} ${X(m.x)} ${Y(m.y)})"><rect x="${X(m.x-c.w/2)}" y="${Y(m.y-c.d/2)}" width="${(c.w*S).toFixed(1)}" height="${(c.d*S).toFixed(1)}" rx="3" fill="rgba(180,150,100,.35)" stroke="#8a7a5a" stroke-width="1.5"${m.z>0.05?' stroke-dasharray="5 3"':''}/></g>`);
+  }
   // Appareils
-  SC.electrique.forEach((el,i)=>{
+  statusByEl.forEach((st,el)=>{
+    const i=[...statusByEl.keys()].indexOf(el);
     const col=_LVL_COL[statusByEl.get(el)]||'#16a34a';
     parts.push(`<circle cx="${X(el.x)}" cy="${Y(el.y)}" r="11" fill="${col}" stroke="#fff" stroke-width="2"/>`
       +`<text x="${X(el.x)}" y="${Y(el.y)}" font-size="12" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#fff" font-family="sans-serif">${i+1}</text>`);
@@ -83,11 +90,13 @@ function buildReportHTML(){
   const now = new Date();
   const badge = l => `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:${_LVL_COL[l]}">${_LVL_TXT[l]}</span>`;
 
-  const rowsEl = ev.items.map(({el,errs,warns},i)=>{
-    const c=CAT_EL[el.type], st=statusByEl.get(el);
-    const zone = el.zone==='hors'?'Hors volume':'Volume '+el.zone;
+  const rowsEl = ev.items.map((it,i)=>{
+    const {el,errs,warns}=it;
+    const c=it.cat, st=statusByEl.get(el);
+    const zn = it.kind==='meuble' ? meubleZone(el) : el.zone;
+    const zone = zn==='hors'?'Hors volume':'Volume '+zn;
     const msgs=[...errs.map(m=>`✖ ${_esc(m)}`),...warns.map(m=>`⚠ ${_esc(m)}`)].join('<br>');
-    return `<tr><td>${i+1}</td><td>${_esc(c.label)}</td><td>${zone}</td><td>${el.h.toFixed(2)} m</td><td>${_esc(el.ip)} · Cl.${_esc(el.cl)}</td><td>${badge(st)}</td><td>${msgs||'—'}</td></tr>`;
+    return `<tr><td>${i+1}</td><td>${_esc(c.label)}</td><td>${zone}</td><td>${(it.kind==='meuble'?el.z:el.h).toFixed(2)} m</td><td>${_esc(el.ip)} · Cl.${_esc(el.cl)}</td><td>${badge(st)}</td><td>${msgs||'—'}</td></tr>`;
   }).join('');
 
   const rowsInst = ev.install.map(f=>`<tr><td>${badge(f.level)}</td><td><b>${_esc(f.title)}</b></td><td>${_esc(f.detail)}</td></tr>`).join('');

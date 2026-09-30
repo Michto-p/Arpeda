@@ -29,7 +29,7 @@ function undo(){
 
 async function clearAll(){
   if(!await askConfirm('Effacer tout le tracé ?')) return;
-  SC.walls=[]; curPoly=[]; SC.openings=[]; SC.sanitaires=[]; SC.electrique=[];
+  SC.walls=[]; curPoly=[]; SC.openings=[]; SC.sanitaires=[]; SC.electrique=[]; SC.meubles=[];
   redraw('draw');
 }
 
@@ -228,6 +228,16 @@ function updateOpProp(id){
         <div class="pf-l">Position (0-1)</div>
         <input type="number" value="${op.t.toFixed(2)}" step="0.05" min="0" max="1"
           onchange="setOpProp(${id},'t',+this.value)">
+      </div>
+    </div>
+    <div class="pf-grid" style="margin-top:8px">
+      <div class="pf">
+        <div class="pf-l">Allège (m)</div>
+        <input type="number" value="${opGeom(op).y0.toFixed(2)}" step="0.05" min="0" max="2" onchange="setOpProp(${id},'sill',+this.value)">
+      </div>
+      <div class="pf">
+        <div class="pf-l">Hauteur (m)</div>
+        <input type="number" value="${(opGeom(op).y1-opGeom(op).y0).toFixed(2)}" step="0.05" min="0.3" max="2.6" onchange="setOpProp(${id},'hgt',+this.value)">
       </div>
     </div>
     <div class="pf" style="margin-top:8px">

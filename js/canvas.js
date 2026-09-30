@@ -138,6 +138,19 @@ function setupCanvasEvents(name, cv){
         redraw(name);
         return;
       }
+      const hitM = SC.meubles.slice().reverse().find(m=>{
+        const c=CAT_MEUBLE[m.type];
+        return Math.hypot(p.x-m.x,p.y-m.y) <= Math.max(c.w,c.d)/2*1.1;
+      });
+      if(hitM){
+        selMeuId=hitM.id; selSanId=-1;
+        dragId=hitM.id; dragMode='meuble';
+        dragOff={x:hitM.x-p.x, y:hitM.y-p.y};
+        openMeubleProp(hitM.id);
+        redraw(name);
+        return;
+      }
+      selMeuId=-1;
       const hit = hitTest(p.x,p.y, SC.sanitaires, s=>{
         const c=CAT_SAN[s.type];
         return Math.max(c.w,c.d)/2*1.1;
@@ -171,7 +184,10 @@ function setupCanvasEvents(name, cv){
     const p=getMPos(clientX,clientY);
     dMouse=p;
     if(dragId>0){
-      if(name==='san'){
+      if(name==='san' && dragMode==='meuble'){
+        const m=SC.meubles.find(x=>x.id===dragId);
+        if(m){ m.x=p.x+dragOff.x; m.y=p.y+dragOff.y; updateMeubleProp(dragId); }
+      } else if(name==='san'){
         const el=SC.sanitaires.find(s=>s.id===dragId);
         if(el){
           if(dragMode==='pommeau'){
@@ -267,7 +283,7 @@ function setupCanvasEvents(name, cv){
 
   cv.addEventListener('touchend', e=>{
     e.preventDefault();
-    dragId=-1;
+    dragId=-1; dragMode='move';
     touchData=[];
   }, {passive:false});
 }

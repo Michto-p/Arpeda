@@ -72,10 +72,11 @@ function renderNorms(){
   const sc = ev.score, te = ev.errs, tw = ev.warns;
 
   let cards='';
-  for(const {el, errs, warns} of ev.items){
-    const c=CAT_EL[el.type];
+  for(const {el, errs, warns, cat:c, kind} of ev.items){
     const st=errs.length?'er':warns.length?'wn':'ok';
-    const zL=el.zone==='hors'?'Hors zone':'Zone '+el.zone;
+    const zone = kind==='meuble' ? meubleZone(el) : el.zone;
+    const zL=zone==='hors'?'Hors zone':'Zone '+zone;
+    const hTxt = kind==='meuble' ? `z ${el.z.toFixed(2)}m` : `${el.h.toFixed(2)}m`;
     const col={er:'#ef4444',wn:'#f59e0b',ok:'#22c55e'}[st];
     cards += `
       <div style="background:var(--sur);border-radius:10px;border:1px solid var(--bor);overflow:hidden;margin-bottom:8px">
@@ -87,7 +88,7 @@ function renderNorms(){
           </span>
         </div>
         <div style="padding:8px 12px;font-size:.7rem;line-height:1.9;color:var(--txt2)">
-          ${zL} · ${el.h.toFixed(2)}m · ${el.ip} · Cl.${el.cl}
+          ${zL} · ${hTxt} · ${el.ip} · Cl.${el.cl}
         </div>
         ${[...errs.map(m=>`<div style="padding:0 12px 4px;color:#ef4444;font-size:.7rem">❌ ${m}</div>`),
            ...warns.map(m=>`<div style="padding:0 12px 4px;color:#f59e0b;font-size:.7rem">⚠️ ${m}</div>`)].join('')}

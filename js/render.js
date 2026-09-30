@@ -29,9 +29,10 @@ function redraw(name){
     drawZones(ctx, v);
   }
 
-  // Sanitaires (san/el)
+  // Sanitaires + meubles (san/el)
   if(name==='san' || name==='el'){
     drawSanitaires(ctx, v, name);
+    drawMeubles(ctx, v, name);
   }
 
   // Élec (el seulement)
@@ -573,7 +574,7 @@ function updateInfo(name){
   } else if(name==='open'){
     txt = `<b>${SC.openings.length}</b> ouverture(s)`;
   } else if(name==='san'){
-    txt = `<b>${SC.sanitaires.length}</b> sanitaire(s)`;
+    txt = `<b>${SC.sanitaires.length}</b> sanitaire(s) · <b>${SC.meubles.length}</b> meuble(s)`;
   } else if(name==='el'){
     const ne=SC.electrique.filter(e=>checkEl(e).errs.length>0).length;
     txt = `<b>${SC.electrique.length}</b> él. · <b style="color:${ne?'var(--er)':'var(--ok)'}">${ne}</b> erreur(s)`;

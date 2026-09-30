@@ -185,7 +185,7 @@ function getZone(x, y, h=1){
         if(h <= 2.25) return 1;
       } else {
         // Baignoire/bac/balnéo : V0 = sol → h3 (rebord)
-        if(h <= (c.h3 || 0.55)) return 0;
+        if(h <= sanH(s)) return 0;
         // Au-dessus : V1
         if(h <= 2.25) return 1;
       }

@@ -399,15 +399,14 @@ function arLoop(t,frame){
 
             // 2) Linteaux au-dessus des ouvertures
             for(const cut of cuts){
-              const oh = cut.op.type==='window' ? 2.30 : 2.10;
+              const oh = opGeom(cut.op).y1;
               if(oh < wallH) drawWallBlock(cut.s, cut.e, oh, wallH-oh, 0.82);
             }
 
             // 3) Allèges sous les fenêtres
             for(const cut of cuts){
-              if(cut.op.type==='window'){
-                drawWallBlock(cut.s, cut.e, 0, 1.10, 0.82);
-              }
+              const y0 = opGeom(cut.op).y0;
+              if(y0 > 0.001) drawWallBlock(cut.s, cut.e, 0, y0, 0.82);
             }
 
             // 4) Vitrage des fenêtres (bleu translucide)
@@ -419,7 +418,7 @@ function arLoop(t,frame){
                 const pz = a.y + (b.y-a.y)*tMid;
                 const lx = (px-rcx)*sc;
                 const lz = -(pz-rcz)*sc;
-                const m = AM.mul(AM.mul(baseM, AM.T(lx, 1.10+0.60, lz)), AM.mul(AM.RY(angle), AM.S(wt*0.4, 1.20, len*sc*0.95)));
+                const m = AM.mul(AM.mul(baseM, AM.T(lx, (opGeom(cut.op).y0+opGeom(cut.op).y1)/2, lz)), AM.mul(AM.RY(angle), AM.S(wt*0.4, opGeom(cut.op).y1-opGeom(cut.op).y0, len*sc*0.95)));
                 arDM(proj, viewM, m, arGeo.cube, 0.50, COL_GLASS);
               }
             }
@@ -447,7 +446,7 @@ function arLoop(t,frame){
     // ── SANITAIRES PLEINS AVEC MATÉRIAUX ──
     for(const s of SC.sanitaires){
       const c=CAT_SAN[s.type]; if(!c) continue;
-      const h=c.h3||0.5;
+      const h=sanH(s);
 
       switch(s.type){
         case 'baignoire':
@@ -542,9 +541,18 @@ function arLoop(t,frame){
         // Z0 : empreintes rouges
         for(const s of sanZ){
           const c=CAT_SAN[s.type];
-          arBox(s.x, (c.h3||.5)/2 + 0.005, s.y, c.w*1.02, (c.h3||.5)*1.02, c.d*1.02, 0.30, COL_Z0);
+          arBox(s.x, sanH(s)/2 + 0.005, s.y, c.w*1.02, sanH(s)*1.02, c.d*1.02, 0.30, COL_Z0);
         }
       }
+    }
+
+    // ── MEUBLES ──
+    for(const m of SC.meubles){
+      const c=CAT_MEUBLE[m.type]; if(!c) continue;
+      const r=checkMeuble(m);
+      const col=r.errs.length?COL_ERR:r.warns.length?[1.0,0.7,0.25]:c.col;
+      const mm=AM.mul(wM(m.x,m.z+m.hgt/2,m.y), AM.mul(AM.RY(-(m.rot||0)), AM.S(c.w*sc,m.hgt,c.d*sc)));
+      arDM(proj,viewM,mm,arGeo.cube,0.9,col);
     }
 
     // ── ÉLECTRIQUE ──
