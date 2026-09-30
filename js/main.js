@@ -5,6 +5,9 @@
 // ════════════════════════════════
 refreshHome();
 
+// Ouverture d'un exercice depuis un lien / QR : …#ex=<code>
+if(/^#ex=/.test(location.hash)) openExerciseFromCode(location.hash.slice(4));
+
 window.addEventListener('resize',()=>{
   ['draw','open','san','el'].forEach(n=>{
     if(VIEWS[n].init) initCanvas(n);

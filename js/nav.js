@@ -14,6 +14,7 @@ function enterApp(){
 }
 
 function exitApp(){
+  if(EXO.active){ exitExercise(); return; }
   document.getElementById('app').style.display='none';
   document.getElementById('home').style.display='flex';
   saveNow();
@@ -22,7 +23,7 @@ function exitApp(){
 
 function goStep(n){
   curStep=n;
-  for(let i=0;i<6;i++){
+  for(let i=0;i<8;i++){
     const sc=document.getElementById('s'+i);
     if(sc) sc.classList.toggle('off', i!==n);
   }
@@ -32,7 +33,7 @@ function goStep(n){
     d.classList.toggle('done', i<n);
   });
   document.getElementById('topTitle').textContent = STEP_TITLES[n] || '';
-  const labels=['1/5','2/5','3/5','4/5','5/5','✓'];
+  const labels=['1/5','2/5','3/5','4/5','5/5','✓','🎓',''];
   document.getElementById('topStep').textContent = labels[n] || '';
 
   // Init canvas du step actif
@@ -43,5 +44,7 @@ function goStep(n){
     if(n===3) initCanvas('el');
     if(n===4) init3D();
     if(n===5) renderNorms();
+    if(n===6) renderExoBuilder();
+    if(n===7) renderExoReport();
   }, 30);
 }

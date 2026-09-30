@@ -8,6 +8,7 @@ const SC = {
   meubles: [],        // {id, type, x, y, rot, z, hgt}
   roomH: 2.50,
   idSeq: 0,
+  exercise: defaultExercise(),      // titre, consigne, correction ajustée — voir exercise.js
   install: normalizeInstall(null),  // paramètres d'installation (DDR, LEL) — voir rules.js
 };
 
@@ -24,3 +25,8 @@ const VIEWS = {
   san: {sc:80, px:0, py:0, init:false},
   el:  {sc:80, px:0, py:0, init:false},
 };
+
+// Mode exercice (apprenti) : scène en lecture seule, verdicts et volumes masqués jusqu'à la correction
+const EXO = {active:false, data:null, id:'', answers:{}, name:'', submitted:false, revealed:false};
+function hideChecks(){ return EXO.active && !EXO.revealed; }
+function hideZones(){ return EXO.active && !EXO.revealed && !(EXO.data && EXO.data.z); }

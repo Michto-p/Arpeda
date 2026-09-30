@@ -28,7 +28,7 @@ const CAT_EL = {
   tableau: {label:'Tableau élec.',  ico:'⚡', zones:['hors'],minDist:120,ip:'IP21',cl:'II',defH:1.50},
 };
 
-const STEP_TITLES = ['Tracer les murs','Portes & fenêtres','Sanitaires','Appareillage','Vue 3D','Vérification'];
+const STEP_TITLES = ['Tracer les murs','Portes & fenêtres','Sanitaires','Appareillage','Vue 3D','Vérification','Exercice','Rapport de contrôle'];
 
 // Meubles et appareils posés dans la pièce.
 // z = élévation du bas (m), hgt = hauteur de l'objet (m), elec = appareil électrique contrôlé par les règles.

@@ -120,6 +120,7 @@ function renderNorms(){
         <button class="nav-btn prev" onclick="exportReport()">📄 Rapport</button>
         <button class="nav-btn prev" onclick="exportProject()">💾 Exporter</button>
       </div>
+      <button class="nav-btn next" style="width:100%;margin-top:8px" onclick="goStep(6)">🎓 Créer un exercice pour les apprentis</button>
     </div>
     ${_card(_cardTitle('Installation') + ev.install.map(_finding).join(''))}
     ${_installForm()}

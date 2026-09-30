@@ -75,6 +75,8 @@ function setupCanvasEvents(name, cv){
     const p=getMPos(clientX,clientY);
     const sp=snap(p.x,p.y);
 
+    if(EXO.active){ exoTap(p); return; }
+
     if(name==='draw'){
       if(drawTool==='pan'){
         // Mode sélection : tap sur un mur l'édite

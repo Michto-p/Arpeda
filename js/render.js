@@ -25,7 +25,7 @@ function redraw(name){
   drawOpenings(ctx, v);
 
   // Zones (étapes san/el)
-  if(name==='san' || name==='el'){
+  if((name==='san' || name==='el') && !hideZones()){
     drawZones(ctx, v);
   }
 
@@ -484,7 +484,7 @@ function drawElec(ctx, v){
   for(const e of SC.electrique){
     const c=CAT_EL[e.type]; if(!c) continue;
     const {errs,warns}=checkEl(e);
-    const col=errs.length?'#ef4444':warns.length?'#f59e0b':'#22c55e';
+    const col=hideChecks()?'#60a5fa':errs.length?'#ef4444':warns.length?'#f59e0b':'#22c55e';
     const sp=mToScreen(e.x,e.y,v);
     const R=Math.max(11, v.sc*0.10);
     const sel=(e.id===selElId);
@@ -513,6 +513,7 @@ function drawElec(ctx, v){
     ctx.arc(sp.x+R*.7, sp.y-R*.7, 3.5, 0, Math.PI*2);
     ctx.fillStyle=col; ctx.fill();
     ctx.strokeStyle='#0a1221'; ctx.lineWidth=1; ctx.stroke();
+    drawNumBadge(ctx, sp.x-R*.8, sp.y-R*.8, exoNum(e));
   }
 }
 
@@ -588,7 +589,7 @@ function updateInfo(name){
     txt = `<b>${SC.sanitaires.length}</b> sanitaire(s) · <b>${SC.meubles.length}</b> meuble(s)`;
   } else if(name==='el'){
     const ne=SC.electrique.filter(e=>checkEl(e).errs.length>0).length;
-    txt = `<b>${SC.electrique.length}</b> él. · <b style="color:${ne?'var(--er)':'var(--ok)'}">${ne}</b> erreur(s)`;
+    txt = hideChecks() ? `<b>${SC.electrique.length}</b> él.` : `<b>${SC.electrique.length}</b> él. · <b style="color:${ne?'var(--er)':'var(--ok)'}">${ne}</b> erreur(s)`;
   }
   el.innerHTML=txt;
 }

@@ -62,7 +62,7 @@ function sanitizeScene(sc){
   const roomH = _isNum(sc.roomH) ? Math.min(3.5, Math.max(2.0, sc.roomH)) : 2.5;
   const maxId = Math.max(0, ...[...openings, ...sanitaires, ...electrique, ...sc.meubles].map(x=>_isNum(x.id)?x.id:0));
   const idSeq = Math.max(maxId, _isNum(sc.idSeq) ? sc.idSeq : 0);
-  return {walls, openings, sanitaires, electrique, meubles: sc.meubles, roomH, idSeq, install: normalizeInstall(sc.install)};
+  return {walls, openings, sanitaires, electrique, meubles: sc.meubles, roomH, idSeq, install: normalizeInstall(sc.install), exercise: normalizeExercise(sc.exercise)};
 }
 
 function applyScene(sc){
@@ -88,6 +88,7 @@ function refreshElements(){
 
 // ── localStorage ──
 function saveNow(){
+  if(EXO.active) return;   // ne jamais écraser le projet du formateur
   clearTimeout(_saveTimer); _saveTimer = null;
   try{
     const snap = projectSnapshot();
@@ -99,6 +100,7 @@ function saveNow(){
 }
 
 function scheduleSave(){
+  if(EXO.active) return;
   if(_saveTimer) return;
   _saveTimer = setTimeout(saveNow, 500);
 }
@@ -124,7 +126,7 @@ function resumeProject(){
 async function newProject(){
   const snap = readSaved();
   if(snap && !await askConfirm('Un projet sauvegardé existe. Le remplacer par un nouveau projet ?')) return;
-  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], meubles:[], roomH:2.5, idSeq:0, install:normalizeInstall(null)});
+  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], meubles:[], roomH:2.5, idSeq:0, install:normalizeInstall(null), exercise:defaultExercise()});
   applyScene(SC);
   enterApp();
 }
@@ -170,6 +172,12 @@ function onImportFile(input){
   reader.onload = ()=>{
     try{
       const snap = JSON.parse(reader.result);
+      if(snap.app==='arpeda' && snap.kind==='exercise' && snap.ex){
+        decodeExercise('p'+_b64u(new TextEncoder().encode(JSON.stringify(snap.ex))))
+          .then(p=>startExercise(p, exoHash(JSON.stringify(snap.ex))))
+          .catch(e=>toast('Import impossible : '+e.message));
+        return;
+      }
       if(snap.app !== 'arpeda' || !snap.scene) throw new Error('Ce fichier n\'est pas un projet Arpeda');
       applyScene(snap.scene);
       saveNow();

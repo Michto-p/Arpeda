@@ -429,7 +429,7 @@ function loop3D(){
   }
 
   // ── ZONES NF C 15-100 (avec clipping par les murs) ──
-  if(v3DLayers.zones){
+  if(v3DLayers.zones && !hideZones()){
     const ZH = 2.25;
     const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
     if(sanZ.length){
@@ -476,7 +476,7 @@ function loop3D(){
     for(const m of SC.meubles){
       const c = CAT_MEUBLE[m.type];
       const r = checkMeuble(m);
-      const col = r.errs.length ? [0.95,0.35,0.35] : r.warns.length ? [0.95,0.7,0.25] : c.col;
+      const col = hideChecks() ? c.col : r.errs.length ? [0.95,0.35,0.35] : r.warns.length ? [0.95,0.7,0.25] : c.col;
       const base = M3.mul(M3.T(m.x, m.z + m.hgt/2, m.y), M3.RY(m.rot||0));
       draw3DBox(proj, view, M3.mul(base, M3.S(c.w, m.hgt, c.d)), col, 0.95);
     }
@@ -488,12 +488,12 @@ function loop3D(){
       const c = CAT_EL[e.type];
       if(!c) continue;
       const {errs, warns} = checkEl(e);
-      const col = errs.length ? [0.95, 0.27, 0.27] : (warns.length ? [0.96, 0.62, 0.04] : [0.13, 0.78, 0.36]);
+      const col = hideChecks() ? [0.38, 0.65, 0.98] : errs.length ? [0.95, 0.27, 0.27] : (warns.length ? [0.96, 0.62, 0.04] : [0.13, 0.78, 0.36]);
       // Boîtier
       const m = M3.mul(M3.T(e.x, e.h, e.y), M3.S(0.10, 0.04, 0.10));
       draw3DBox(proj, view, m, col, 1.0);
       // Halo erreur
-      if(errs.length){
+      if(errs.length && !hideChecks()){
         const halo = M3.mul(M3.T(e.x, e.h, e.y), M3.S(0.16, 0.005, 0.16));
         draw3DBox(proj, view, halo, [0.95, 0.27, 0.27], 0.6);
       }

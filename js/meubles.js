@@ -119,7 +119,7 @@ function drawMeubles(ctx, v, name){
     const w=c.w*v.sc, h=c.d*v.sc;
     const sel=(name==='san' && m.id===selMeuId);
     const r=checkMeuble(m);
-    const col=r.errs.length?'#ef4444':r.warns.length?'#f59e0b':null;
+    const col=hideChecks()?null:r.errs.length?'#ef4444':r.warns.length?'#f59e0b':null;
     ctx.save();
     ctx.translate(cp.x,cp.y); ctx.rotate(m.rot||0);
     if(sel){ ctx.shadowColor='rgba(96,165,250,.7)'; ctx.shadowBlur=14; }
@@ -130,6 +130,7 @@ function drawMeubles(ctx, v, name){
     ctx.setLineDash(m.z>0.05?[5,3]:[]);      // pointillé = objet surélevé
     rr(ctx,-w/2,-h/2,w,h,3); ctx.fill(); ctx.stroke();
     ctx.restore();
+    if(c.elec) drawNumBadge(ctx, cp.x, cp.y, exoNum(m));
     if(name==='san'||sel){
       ctx.font='bold 9px ui-monospace,monospace';
       ctx.fillStyle=sel?'#60a5fa':'rgba(200,180,140,.85)';

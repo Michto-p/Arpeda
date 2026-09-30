@@ -67,16 +67,19 @@ function countTypes(types){
 function checkInstallation(){
   const inst = normalizeInstall(SC.install);
   const out = [];
-  const add = (level, title, detail) => out.push({level, title, detail});
+  let cur='';
+  const add = (level, title, detail) => out.push({id:cur, level, title, detail});
 
   // 1. Équipements minimaux
   for(const r of RULES.minEquip){
+    cur='min_'+r.id;
     const n = countTypes(r.types);
     if(n >= r.min) add('ok', r.label, `${n} posé(s) (minimum ${r.min})`);
     else add(r.level, r.label, `Aucun posé — minimum ${r.min} requis`);
   }
 
   // 2. Protection différentielle 30 mA
+  cur='ddr';
   if(inst.diff30 === true)
     add('ok', 'Protection différentielle 30 mA', `Circuits de la pièce protégés par DDR ≤ ${RULES.ddrMaxMa} mA`);
   else if(inst.diff30 === false)
@@ -85,6 +88,7 @@ function checkInstallation(){
     add('warn', 'Protection différentielle 30 mA', 'Non renseignée — à confirmer sur le tableau');
 
   // 3. Liaison équipotentielle locale
+  cur='lel';
   const conduc = Object.values(inst.conducteurs).some(Boolean);
   const minSec = inst.lelProtegee ? RULES.lelMinSection.protegee : RULES.lelMinSection.apparent;
   if(inst.lel === true){
@@ -102,6 +106,7 @@ function checkInstallation(){
   }
 
   // 4. Pièce sans volume défini
+  cur='vol';
   if(!SC.sanitaires.some(s=>CAT_SAN[s.type]?.genZone))
     add('warn', 'Volumes de la salle d\'eau', 'Aucune baignoire, douche ou balnéo : aucun volume 0/1/2 généré');
 

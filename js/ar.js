@@ -520,7 +520,7 @@ function arLoop(t,frame){
     }
 
     // ── ZONES NF C 15-100 ──
-    if(arLayers.zones){
+    if(arLayers.zones && !hideZones()){
       const ZH=2.25;
       const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
       if(sanZ.length){
@@ -550,7 +550,7 @@ function arLoop(t,frame){
     for(const m of SC.meubles){
       const c=CAT_MEUBLE[m.type]; if(!c) continue;
       const r=checkMeuble(m);
-      const col=r.errs.length?COL_ERR:r.warns.length?[1.0,0.7,0.25]:c.col;
+      const col=hideChecks()?c.col:r.errs.length?COL_ERR:r.warns.length?[1.0,0.7,0.25]:c.col;
       const mm=AM.mul(wM(m.x,m.z+m.hgt/2,m.y), AM.mul(AM.RY(-(m.rot||0)), AM.S(c.w*sc,m.hgt,c.d*sc)));
       arDM(proj,viewM,mm,arGeo.cube,0.9,col);
     }
@@ -560,8 +560,8 @@ function arLoop(t,frame){
       for(const e of SC.electrique){
         const c=CAT_EL[e.type]; if(!c) continue;
         const errs=checkEl(e).errs;
-        const ok=errs.length===0;
-        const tint = ok?COL_OK:COL_ERR;
+        const ok=hideChecks() || errs.length===0;
+        const tint = hideChecks()?[0.38,0.65,0.98]:(ok?COL_OK:COL_ERR);
         // Boîtier principal
         arBox(e.x, e.h, e.y, 0.10, 0.04, 0.10, 0.95, tint);
         // Halo conformité
@@ -586,7 +586,7 @@ function arLoop(t,frame){
 
     document.getElementById('arInfo').textContent=
       `${SC.sanitaires.length} san · ${SC.electrique.length} él · ×${arSceneScale.toFixed(2)}`;
-    if(arAnchored) updateVolBox();
+    if(arAnchored && !hideChecks()) updateVolBox();
   }
 }
 
