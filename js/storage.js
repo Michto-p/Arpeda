@@ -32,6 +32,13 @@ function projectSnapshot(){
 // ── Validation d'un projet importé / restauré ──
 const _isNum = v => typeof v === 'number' && Number.isFinite(v);
 
+function normalizeArRef(r){
+  if(!r || !r.a || !r.b || ![r.a.x,r.a.y,r.b.x,r.b.y].every(_isNum)) return null;
+  const d=Math.hypot(r.b.x-r.a.x, r.b.y-r.a.y);
+  if(d<1e-6) return null;
+  return {a:{x:r.a.x,y:r.a.y}, b:{x:r.a.x+(r.b.x-r.a.x)/d, y:r.a.y+(r.b.y-r.a.y)/d}, label:typeof r.label==='string'?r.label.slice(0,60):''};
+}
+
 function sanitizeScene(sc){
   if(!sc || typeof sc !== 'object') throw new Error('Fichier invalide');
   const arr = k => {
@@ -62,7 +69,7 @@ function sanitizeScene(sc){
   const roomH = _isNum(sc.roomH) ? Math.min(3.5, Math.max(2.0, sc.roomH)) : 2.5;
   const maxId = Math.max(0, ...[...openings, ...sanitaires, ...electrique, ...sc.meubles].map(x=>_isNum(x.id)?x.id:0));
   const idSeq = Math.max(maxId, _isNum(sc.idSeq) ? sc.idSeq : 0);
-  return {walls, openings, sanitaires, electrique, meubles: sc.meubles, roomH, idSeq, install: normalizeInstall(sc.install), exercise: normalizeExercise(sc.exercise)};
+  return {walls, openings, sanitaires, electrique, meubles: sc.meubles, roomH, idSeq, install: normalizeInstall(sc.install), exercise: normalizeExercise(sc.exercise), arRef: normalizeArRef(sc.arRef)};
 }
 
 function applyScene(sc){
@@ -126,7 +133,7 @@ function resumeProject(){
 async function newProject(){
   const snap = readSaved();
   if(snap && !await askConfirm('Un projet sauvegardé existe. Le remplacer par un nouveau projet ?')) return;
-  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], meubles:[], roomH:2.5, idSeq:0, install:normalizeInstall(null), exercise:defaultExercise()});
+  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], meubles:[], roomH:2.5, idSeq:0, install:normalizeInstall(null), exercise:defaultExercise(), arRef:null});
   applyScene(SC);
   enterApp();
 }

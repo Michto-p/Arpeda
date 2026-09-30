@@ -15,6 +15,30 @@ let arLayers={zones:true, elec:true, walls:true};
 let arFrameN=0;
 let arZoneCells=null;   // cellules de volumes (calculées une fois par session)
 
+// ── Ancrage : point A au sol, point B à exactement 1 m ──
+// Le plan définit le repère (SC.arRef : A et la direction A→B, 1 m). En RA on retrouve A au sol,
+// puis un point à 1 m : la direction donne l'orientation, l'échelle est toujours 1:1.
+const AR_B_DIST = 1.0;       // distance A→B (m)
+const AR_CAPTURE = 0.25;     // tolérance de capture autour de l'anneau de 1 m
+const AR_LOCK_MS = 800;      // temps de stabilité avant verrouillage automatique
+let arSnap={ok:false,x:0,y:0,z:0,ux:1,uz:0,d:0};
+let arStableSince=0, arLastDir=null;
+
+// Repère du plan : A (point d'ancrage) et B (à 1 m). Par défaut : 1er sommet du 1er mur et sa direction.
+function getArRef(){
+  const r=SC.arRef;
+  if(r && r.a && r.b && [r.a.x,r.a.y,r.b.x,r.b.y].every(Number.isFinite)){
+    const d=Math.hypot(r.b.x-r.a.x, r.b.y-r.a.y);
+    if(d>1e-6) return {a:{x:r.a.x,y:r.a.y}, b:{x:r.a.x+(r.b.x-r.a.x)/d, y:r.a.y+(r.b.y-r.a.y)/d}, label:r.label||''};
+  }
+  const w=SC.walls[0];
+  if(w && w.pts.length>=2){
+    const a=w.pts[0], b=w.pts[1], d=Math.hypot(b.x-a.x,b.y-a.y)||1;
+    return {a:{x:a.x,y:a.y}, b:{x:a.x+(b.x-a.x)/d, y:a.y+(b.y-a.y)/d}, label:''};
+  }
+  return {a:{x:0,y:0}, b:{x:1,y:0}, label:''};
+}
+
 async function startAR(){
   if(!navigator.xr){ alert('WebXR non disponible.\nChrome Android + ARCore requis.'); return; }
   const ok=await navigator.xr.isSessionSupported('immersive-ar').catch(()=>false);
@@ -45,7 +69,7 @@ async function startAR(){
   }
 
   arDynVbo=null; arZoneCells=null;
-  arSetSt('Tap 1 → coin haut-gauche du plan','scan');
+  arSetSt(arMsgA(),'scan');
   arAnchorStep=0; arA=null; arB=null; arAnchored=false; arSceneScale=1; arRotY=0;
   arUpdBtn();
 
@@ -99,44 +123,68 @@ async function arStartHit(){
 }
 function arStopHit(){ if(arHitSrc){ try{arHitSrc.cancel();}catch{} arHitSrc=null; } }
 
+function arMsgA(){
+  const r=getArRef();
+  return 'Point A'+(r.label?' ('+r.label+')':'')+' : visez le sol et touchez';
+}
+
 function arOnTap(){
-  if(!arHitOK) return;
   if(arAnchorStep===0){
+    if(!arHitOK){ arSetSt('Sol non détecté : bougez lentement le téléphone','scan'); return; }
     arA={x:arHitX,y:arHitY,z:arHitZ};
-    arAnchorStep=1;
-    arSetSt('Tap 2 → coin haut-droit (le long du mur du haut)','ok');
+    arAnchorStep=1; arStableSince=0; arLastDir=null; arSnap.ok=false;
+    arSetSt('Point B : placez-vous à 1 m de A (anneau vert)','ok');
     arUpdBtn();
   } else if(arAnchorStep===1){
-    arB={x:arHitX,y:arHitY,z:arHitZ};
-    const dx=arB.x-arA.x, dz=arB.z-arA.z;
-    const dist=Math.sqrt(dx*dx+dz*dz);
-    arRotY=Math.atan2(-dz,dx);   // l'axe x du plan suit la direction A→B
-    let mnx=0,mxx=3;
-    if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
-      mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
-    }
-    const roomW=mxx-mnx||3;
-    arSceneScale=Math.max(0.1, dist/roomW);
-    arAnchorX=arA.x; arAnchorY=arA.y; arAnchorZ=arA.z;
-    arAnchored=true; arAnchorStep=2;
-    arStopHit();
-    arSetSt('Scène ancrée ✓ Ouvre ⚙️ pour ajuster','go');
-    arUpdBtn();
-    // Synchroniser les sliders du panneau settings
-    const rsc=document.getElementById('arRSc');
-    const rry=document.getElementById('arRRy');
-    const vsc=document.getElementById('arVSc');
-    const vry=document.getElementById('arVRy');
-    if(rsc){ rsc.value=arSceneScale; vsc.textContent='×'+arSceneScale.toFixed(2); }
-    if(rry){ const deg=Math.round(arRotY*180/Math.PI); rry.value=deg; vry.textContent=deg+'°'; }
+    if(arSnap.ok) arLock();
+    else arSetSt(`Point B à 1 m de A (actuellement ${arSnap.d.toFixed(2)} m)`,'scan');
   }
 }
+
+// Point B capturé à 1,00 m de A : calcule l'orientation, échelle 1:1
+function arLock(){
+  if(arAnchored || !arA) return;
+  const ref=getArRef();
+  const thp=Math.atan2(ref.b.y-ref.a.y, ref.b.x-ref.a.x);   // direction A→B dans le plan
+  const thw=Math.atan2(arSnap.uz, arSnap.ux);                // direction A→B dans le monde (x, z)
+  arB={x:arSnap.x,y:arSnap.y,z:arSnap.z};
+  arRotY=thp-thw;
+  arSceneScale=1;
+  arAnchorX=arA.x; arAnchorY=arA.y; arAnchorZ=arA.z;
+  arAnchored=true; arAnchorStep=2;
+  arStopHit();
+  arSetSt('Modèle ancré 1:1 ✓ — ⚙️ pour affiner','go');
+  arUpdBtn();
+  if(navigator.vibrate) try{ navigator.vibrate(60); }catch{}
+  const rsc=document.getElementById('arRSc'), rry=document.getElementById('arRRy');
+  const vsc=document.getElementById('arVSc'), vry=document.getElementById('arVRy');
+  if(rsc){ rsc.value=1; vsc.textContent='×1.00'; }
+  if(rry){ const deg=Math.round(arRotY*180/Math.PI); rry.value=Math.max(-180,Math.min(180,deg)); vry.textContent=deg+'°'; }
+}
+
+// Chaque image : capture sur l'anneau de 1 m, verrouillage si la visée reste stable
+function arUpdateSnap(){
+  arSnap.ok=false;
+  if(!arHitOK || !arA){ arStableSince=0; arLastDir=null; return; }
+  const dx=arHitX-arA.x, dz=arHitZ-arA.z, d=Math.hypot(dx,dz);
+  arSnap.d=d;
+  if(d>0.3 && Math.abs(d-AR_B_DIST)<=AR_CAPTURE){
+    const ux=dx/d, uz=dz/d;
+    arSnap={ok:true,d,x:arA.x+ux*AR_B_DIST,y:arHitY,z:arA.z+uz*AR_B_DIST,ux,uz};
+    const dir=Math.atan2(uz,ux), now=performance.now();
+    let dd=dir-(arLastDir===null?dir:arLastDir); while(dd>Math.PI) dd-=2*Math.PI; while(dd<-Math.PI) dd+=2*Math.PI;
+    if(arLastDir===null || Math.abs(dd)>0.05){ arStableSince=now; }   // >3° de bougé : on repart
+    arLastDir=dir;
+    if(now-arStableSince>=AR_LOCK_MS) arLock();
+  } else { arStableSince=0; arLastDir=null; }
+}
+
 function arPlaceObj(){ arOnTap(); }
 function arReanchor(){
   arAnchored=false; arAnchorStep=0; arA=null; arB=null;
   arSceneScale=1; arRotY=0;
   arStartHit();
-  arSetSt('Tap 1 → coin haut-gauche du plan','scan');
+  arSetSt(arMsgA(),'scan');
   arUpdBtn();
 }
 let arOffY=0, arSetVisible=false;
@@ -155,8 +203,8 @@ function arTog(k){
 function closeAR(){ if(arSes) arSes.end(); }
 function arUpdBtn(){
   const b=document.getElementById('arPlace');
-  if(arAnchorStep===0){ b.textContent='📍 Tap 1'; b.style.background=''; }
-  else if(arAnchorStep===1){ b.textContent='📐 Tap 2'; b.style.background='rgba(167,139,250,.5)'; }
+  if(arAnchorStep===0){ b.textContent='📍 Point A'; b.style.background=''; }
+  else if(arAnchorStep===1){ b.textContent='📐 Point B'; b.style.background='rgba(167,139,250,.5)'; }
   else { b.textContent='✓ Ancré'; b.style.background='rgba(34,197,94,.5)'; }
 }
 function arSetSt(t,type){
@@ -283,6 +331,8 @@ function arLoop(t,frame){
     }
   }
 
+  if(arAnchorStep===1) arUpdateSnap();
+
   for(const view of pose.views){
     const vp=layer.getViewport(view);
     gl.viewport(vp.x,vp.y,vp.width,vp.height);
@@ -293,15 +343,27 @@ function arLoop(t,frame){
     if(arAnchorStep===0 && arHitOK){
       arDL(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.ret,1,1,0.3,1);
     }
-    // Phase 1
+    // Phase 1 : anneau de 1 m autour de A, point B capturé sur l'anneau
     if(arAnchorStep===1 && arA){
       arDL(proj,viewM,AM.T(arA.x,arA.y+0.01,arA.z),arGeo.ret,0.2,1,0.4,1);
+      const ring=[]; const N=72;
+      for(let i=0;i<N;i++){
+        const a0=i/N*Math.PI*2, a1=(i+1)/N*Math.PI*2;
+        ring.push(Math.cos(a0)*AR_B_DIST,0.012,Math.sin(a0)*AR_B_DIST, Math.cos(a1)*AR_B_DIST,0.012,Math.sin(a1)*AR_B_DIST);
+      }
+      const near=arSnap.ok;
+      arDL(proj,viewM,AM.T(arA.x,arA.y,arA.z),mkLD(ring), near?0.2:1, near?1:1, near?0.4:1, near?0.95:0.55);
       if(arHitOK){
-        arDL(proj,viewM,AM.T(arHitX,arHitY,arHitZ),arGeo.ret,0.7,0.3,1,1);
-        const lg=mkLD([0,0.02,0,arHitX-arA.x,0.02,arHitZ-arA.z]);
+        const tx=near?arSnap.x:arHitX, tz=near?arSnap.z:arHitZ;
+        arDL(proj,viewM,AM.T(tx,arHitY,tz),arGeo.ret,near?0.2:0.7,near?1:0.3,near?0.4:1,1);
+        const lg=mkLD([0,0.02,0,tx-arA.x,0.02,tz-arA.z]);
         arDL(proj,viewM,AM.T(arA.x,arA.y,arA.z),lg,1,0.85,0.1,0.9);
-        const d=Math.sqrt(Math.pow(arHitX-arA.x,2)+Math.pow(arHitZ-arA.z,2));
-        if(arFrameN%15===0) arSetSt(`Tap 2 — ${d.toFixed(2)}m`,'ok');
+      }
+      if(arFrameN%10===0 && arHitOK){
+        if(near){
+          const rest=Math.max(0,AR_LOCK_MS-(performance.now()-arStableSince));
+          arSetSt(rest>0?`1,00 m ✓ — ne bougez plus (${(rest/1000).toFixed(1)} s)`:'Verrouillage…','go');
+        } else arSetSt(`B : ${arSnap.d.toFixed(2)} m — visez l'anneau vert à 1 m`,'ok');
       }
     }
 
@@ -313,7 +375,7 @@ function arLoop(t,frame){
       mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
       mny=Math.min(mny,p.y); mxy=Math.max(mxy,p.y);
     }
-    const ox=mnx, oz=mny;   // origine = coin haut-gauche du plan, ancré sur le point A
+    const refA=getArRef().a, ox=refA.x, oz=refA.y;   // origine = point A du plan, ancré sur le point A au sol
     const sc=arSceneScale;
     const RH=SC.roomH||2.5, rW=(mxx-mnx)*sc, rD=(mxy-mny)*sc;
     const baseM=AM.mul(AM.T(arAnchorX,arAnchorY+arOffY,arAnchorZ),AM.RY(arRotY));

@@ -5,6 +5,7 @@ const SC = {
   openings: [],       // {id, type, wi, si, t, w, menui:'fenetre_pvc_dv'}
   sanitaires: [],
   electrique: [],
+  arRef: null,        // repère RA : {a:{x,y}, b:{x,y}, label} (b à 1 m de a) ; null = défaut (1er mur)
   meubles: [],        // {id, type, x, y, rot, z, hgt}
   roomH: 2.50,
   idSeq: 0,
