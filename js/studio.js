@@ -105,13 +105,12 @@ function enterStudio(){
   for(const id of ['psWall','psOp','psSan','psEl']){ const e=document.getElementById(id); if(e) host.appendChild(e); }
   _adopt('s4','st3D'); _adopt('s5','stVerif'); _adopt('s6','stExo');
   document.getElementById('stName').value=SC.name||'';
-  if(!SC.walls.length && !SC.sanitaires.length) ST.emptyProject=true;
   buildTools(); buildCatalog();
   setupStudioKeys();
   histInit();
   studioTab('plan');
   requestAnimationFrame(()=>{ VIEWS.studio.init=false; initCanvas('studio'); studioPanelRefresh(); });
-  window.addEventListener('resize', ()=>{ if(STUDIO.active && STUDIO.tab==='plan') initCanvas('studio'); });
+  if(!ST.resizeOn){ ST.resizeOn=true; window.addEventListener('resize', ()=>{ if(STUDIO.active && STUDIO.tab==='plan') initCanvas('studio'); }); }
 }
 function studioExit(){
   saveNow();

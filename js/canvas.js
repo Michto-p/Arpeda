@@ -22,7 +22,7 @@ function initCanvas(name){
   if(!VIEWS[name].init){
     VIEWS[name].init=true;
     fitView(name);
-    if(name==='studio') setupStudioEvents(cv); else setupCanvasEvents(name, cv);
+    if(name==='studio'){ if(!cv._evt){ cv._evt=true; setupStudioEvents(cv); } } else setupCanvasEvents(name, cv);
   }
   redraw(name);
 }

@@ -308,7 +308,7 @@ function stMagnet(o, cat){
       if(along<-0.1||along>len+0.1) continue;
       const ds=(o.x-a.x)*n.x+(o.y-a.y)*n.y, sgn=ds>=0?1:-1;
       const gap=Math.abs(ds)-(stObjHalfAlong(o,cat,n)+th);
-      if(Math.abs(gap)<0.10 && (!best||Math.abs(gap)<Math.abs(best.gap))) best={gap,n,sgn};
+      if(gap>-0.30 && gap<0.10 && (!best||Math.abs(gap)<Math.abs(best.gap))) best={gap,n,sgn};   // recolle, et ressort un objet qui mord dans le mur
     }
   });
   if(best){ o.x-=best.n.x*best.sgn*best.gap; o.y-=best.n.y*best.sgn*best.gap; }
@@ -658,6 +658,7 @@ function stKeyDown(e){
   if(k==='Escape'){ if(ST.typed){ ST.typed=''; redraw('studio'); } else if(ST.measure){ ST.measure=null; redraw('studio'); } else stCancelOrFinish(); return; }
   if(k==='Backspace' && ST.tool==='wall' && ST.poly.length){ e.preventDefault(); ST.poly.pop(); redraw('studio'); return; }
   if(k==='Delete'||k==='Backspace'){ e.preventDefault(); stDeleteSelection(); return; }
+  if(k==='?'||k==='F1'){ e.preventDefault(); document.getElementById('dlgKeys').style.display='flex'; return; }
   if(k==='Home'){ e.preventDefault(); studioFit(); return; }
   if(k==='+'||k==='='){ zoom('studio',1.25); return; }
   if(k==='-'){ zoom('studio',0.8); return; }
@@ -985,5 +986,14 @@ function studioRender(){
   stDrawArRef(ctx,v);
   stDrawSelection(ctx,v);
   stDrawPreview(ctx,v);
+  if(!SC.walls.length && !SC.sanitaires.length && ST.tool==='select' && !ST.poly.length){
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(226,232,240,.8)'; ctx.font='600 18px -apple-system,Segoe UI,sans-serif';
+    ctx.fillText('Nouveau plan', W/2, H/2-30);
+    ctx.fillStyle='rgba(148,163,184,.9)'; ctx.font='13px -apple-system,Segoe UI,sans-serif';
+    ctx.fillText('R : pièce rectangulaire (2 clics, ou tapez 320x240 puis Entrée)', W/2, H/2);
+    ctx.fillText('W : tracer des murs (clics, longueur tapée en cm, Entrée pour fermer)', W/2, H/2+22);
+    ctx.fillText('Molette : zoom · Espace + glisser : déplacer la vue', W/2, H/2+44);
+  }
   const z=document.getElementById('stZoom'); if(z) z.textContent=Math.round(v.sc/80*100)+' %';
 }

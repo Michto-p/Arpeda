@@ -12,13 +12,35 @@ Aucune compilation : servir le dossier en statique et ouvrir `index.html`.
 python3 -m http.server 8000   # puis http://localhost:8000
 ```
 
-La RA (`immersive-ar` + `hit-test`) exige HTTPS et Chrome Android avec ARCore.
+**Deux usages, deux appareils**
 
-Ancrage RA : **Tap 1** = coin haut-gauche du plan, **Tap 2** = coin haut-droit (le long du mur du haut). La distance entre les deux fixe l'échelle (1:1 si elle égale la largeur du plan) et l'orientation ; ⚙️ permet d'affiner.
+| Appareil | Rôle |
+|---|---|
+| **Ordinateur** (écran ≥ 900 px + souris) | **Éditeur** de plans : création de la pièce, pose des équipements, vérification NF C 15-100, exercices. |
+| **Téléphone** | **Réalité augmentée** (Chrome Android + ARCore, HTTPS) : le projet arrive par QR / lien depuis l'éditeur (« 📱 Envoyer à la RA »). Un assistant de dessin simplifié reste disponible en secours. |
+
+Forcer un mode : `?studio=1` (éditeur) ou `?mobile=1` (téléphone).
+
+## Éditeur PC
+
+Plan à l'échelle façon logiciel d'architecte : murs à l'épaisseur réelle (hachurés), portes et fenêtres avec battants, cotes extérieures, surface, grille, accrochage (extrémités, milieux, murs, alignements, angles de 45°). Les objets se collent aux murs.
+
+- **Tracer** : `W` (murs, cloisons) — clics pour poser les points, ou tapez la longueur (`320` = 3,20 m, `3.2` aussi) puis Entrée ; Entrée ferme la pièce. `R` : rectangle, 2 clics ou `320x240` + Entrée.
+- **Modifier** : glisser un sommet, un mur ou un objet ; poignée « + » pour ajouter un sommet ; poignée ⟳ pour pivoter ; double-clic sur un mur pour taper sa longueur ; les hauteurs, IP, classes, matériaux se règlent dans le panneau de droite.
+- **Confort** : annuler/refaire 100 niveaux (`Ctrl+Z` / `Ctrl+Y`), copier/coller, `Suppr`, flèches, molette + `Espace` pour la vue, `?` pour la liste des raccourcis.
+- **Onglets** : Plan, 3D, Vérification (score et rapport), Exercice.
+
+### Repère RA (point A + point à 1 m)
+
+Sur le plan, le repère (A et la direction vers B, à 1 m) se pose avec `A` ou en glissant les marqueurs ; par défaut : premier sommet du premier mur. Sur le chantier :
+
+1. Touchez le **point A** au sol (le coin ou repère indiqué).
+2. Placez-vous à **1 m** : un anneau vert autour de A montre où viser. Dès que la visée reste stable environ 0,8 s sur l'anneau, le point B est **verrouillé automatiquement** à exactement 1,00 m.
+3. Le modèle est ancré en **1:1**, orienté selon A→B. ⚙️ permet d'affiner rotation, hauteur et échelle.
 
 ## Exercices pour apprentis (formateur → apprentis)
 
-1. **Formateur** : dessiner la pièce (bouton 📐 pour saisir les cotes), poser sanitaires, meubles, portes, fenêtres et appareillage, régler les hauteurs, renseigner DDR 30 mA / LEL à l'étape Vérification, puis **🎓 Créer un exercice**.
+1. **Formateur** (sur PC) : dessiner la pièce, poser sanitaires, meubles, portes, fenêtres et appareillage, régler les hauteurs, renseigner DDR 30 mA / LEL à l'étape Vérification, puis **🎓 Créer un exercice**.
 2. Ajuster la correction (bouton ⇄ par point de contrôle, commentaire facultatif), puis **🔗 Lien + QR** (ou **💾 Fichier**).
 3. **Apprenti** : scanne le QR / ouvre le lien. La scène est en lecture seule, les **volumes et verdicts sont masqués** (sauf case « aide » cochée). Il observe le plan, la 3D et la RA, puis remplit le rapport : conforme / non conforme + motifs.
 4. **Valider** affiche la correction, la note et les volumes ; **Télécharger mon rapport** produit un fichier à remettre au formateur.
@@ -50,6 +72,9 @@ js/               scripts classiques (pas de modules : les handlers onclick util
   state.js        état du projet (SC)
   volumes.js      calcul des volumes 0/1/2 (getZone)
   render.js       rendu canvas 2D      view3d.js  vue 3D WebGL      ar.js  WebXR
+  studio.js       éditeur PC : coque, outils, catalogue, onglets, envoi vers le téléphone
+  studio-canvas.js éditeur PC : plan, accrochage, souris, clavier, rendu
+  history.js      annuler / refaire
   meubles.js      meubles et appareils
   exercise.js     exercices formateur / apprenti, correction, notation
   vendor/qrcode.js  qrcode-generator 1.4.4 (MIT)

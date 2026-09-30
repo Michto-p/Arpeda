@@ -247,6 +247,12 @@ function updateOpProp(id){
     ${m ? `<div style="font-size:.65rem;color:var(--mid);font-style:italic;margin-top:4px">${m.desc||''}</div>` : ''}
     ${detail}
     ${op.type!=='window' ? `
+    <div class="pf-grid" style="margin-top:8px">
+      <div class="pf"><div class="pf-l">Charnière</div>
+        <select onchange="setOpProp(${id},'hinge',this.value)"><option value="l"${(op.hinge||'l')==='l'?' selected':''}>Gauche</option><option value="r"${op.hinge==='r'?' selected':''}>Droite</option></select></div>
+      <div class="pf"><div class="pf-l">Sens d'ouverture</div>
+        <select onchange="setOpProp(${id},'swing',this.value)"><option value="in"${(op.swing||'in')==='in'?' selected':''}>Vers la pièce</option><option value="out"${op.swing==='out'?' selected':''}>Vers l'extérieur</option></select></div>
+    </div>
     <div class="pf" style="margin-top:8px">
       <div class="pf-l">Ouverture porte (degrés)</div>
       <input type="range" min="0" max="120" step="5" value="${op.openDeg||30}"

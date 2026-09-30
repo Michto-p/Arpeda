@@ -416,8 +416,31 @@
     <label><input type="checkbox" id="stOptOrtho" checked onchange="ST.opts.ortho=this.checked"> Ortho</label>
     <label><input type="checkbox" id="stOptDims" checked onchange="ST.opts.dims=this.checked;redraw('studio')"> Cotes</label>
     <span class="st-sp"></span>
+    <button class="st-btn" style="height:22px;font-size:.65rem" onclick="document.getElementById('dlgKeys').style.display='flex'">⌨ Raccourcis</button>
     <span id="stZoom">100 %</span>
   </footer>
+</div>
+
+<!-- AIDE : RACCOURCIS -->
+<div id="dlgKeys" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:20px" onclick="this.style.display='none'">
+  <div style="background:var(--sur);border:1px solid var(--bor);border-radius:14px;padding:18px 22px;max-width:520px;width:100%;max-height:90vh;overflow:auto;font-size:.76rem;line-height:1.9" onclick="event.stopPropagation()">
+    <div style="font-weight:800;font-size:.95rem;margin-bottom:8px">⌨ Raccourcis de l'éditeur</div>
+    <div class="st-kv"><span>V · W · R · D · F · M · A · H</span><b>Sélection · Mur · Pièce · Porte · Fenêtre · Mesure · Repère RA · Main</b></div>
+    <div class="st-kv"><span>Clic / glisser</span><b>Sélectionner / déplacer</b></div>
+    <div class="st-kv"><span>Mur : chiffres + Entrée</span><b>Longueur exacte (cm ; avec un point = m)</b></div>
+    <div class="st-kv"><span>Pièce : « 320x240 » + Entrée</span><b>Rectangle aux dimensions</b></div>
+    <div class="st-kv"><span>Entrée / Échap / clic droit</span><b>Fermer · terminer · annuler</b></div>
+    <div class="st-kv"><span>Retour arrière</span><b>Retirer le dernier point</b></div>
+    <div class="st-kv"><span>Double-clic sur un mur</span><b>Saisir la longueur du côté</b></div>
+    <div class="st-kv"><span>Poignée +</span><b>Ajouter un sommet</b></div>
+    <div class="st-kv"><span>Maj · Alt</span><b>Angle libre / désactiver l'accrochage</b></div>
+    <div class="st-kv"><span>Molette · Espace + glisser</span><b>Zoom · déplacer la vue</b></div>
+    <div class="st-kv"><span>Suppr</span><b>Supprimer la sélection</b></div>
+    <div class="st-kv"><span>Ctrl+Z / Ctrl+Y</span><b>Annuler / rétablir</b></div>
+    <div class="st-kv"><span>Ctrl+C / V / D</span><b>Copier / coller / dupliquer</b></div>
+    <div class="st-kv"><span>Flèches (Maj = 10 cm)</span><b>Déplacer de 1 cm</b></div>
+    <div class="st-kv"><span>Ctrl+S · Début</span><b>Enregistrer · tout voir</b></div>
+  </div>
 </div>
 
 <!-- PARTAGE (lien / QR) -->
