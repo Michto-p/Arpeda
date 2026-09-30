@@ -13,6 +13,7 @@ let arRotY=0, arSceneScale=1.0;
 let arHitX=0, arHitY=0, arHitZ=0, arHitOK=false;
 let arLayers={zones:true, elec:true, walls:true};
 let arFrameN=0;
+let arZoneCells=null;   // cellules de volumes (calculées une fois par session)
 
 async function startAR(){
   if(!navigator.xr){ alert('WebXR non disponible.\nChrome Android + ARCore requis.'); return; }
@@ -43,7 +44,8 @@ async function startAR(){
     alert('Erreur AR: '+e.message); return;
   }
 
-  arSetSt('Tap 1 → premier coin','scan');
+  arDynVbo=null; arZoneCells=null;
+  arSetSt('Tap 1 → coin haut-gauche du plan','scan');
   arAnchorStep=0; arA=null; arB=null; arAnchored=false; arSceneScale=1; arRotY=0;
   arUpdBtn();
 
@@ -102,13 +104,13 @@ function arOnTap(){
   if(arAnchorStep===0){
     arA={x:arHitX,y:arHitY,z:arHitZ};
     arAnchorStep=1;
-    arSetSt('Tap 2 → coin opposé','ok');
+    arSetSt('Tap 2 → coin haut-droit (le long du mur du haut)','ok');
     arUpdBtn();
   } else if(arAnchorStep===1){
     arB={x:arHitX,y:arHitY,z:arHitZ};
     const dx=arB.x-arA.x, dz=arB.z-arA.z;
     const dist=Math.sqrt(dx*dx+dz*dz);
-    arRotY=Math.atan2(dx,dz);
+    arRotY=Math.atan2(-dz,dx);   // l'axe x du plan suit la direction A→B
     let mnx=0,mxx=3;
     if(SC.walls.length) for(const w of SC.walls) for(const p of w.pts){
       mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
@@ -134,7 +136,7 @@ function arReanchor(){
   arAnchored=false; arAnchorStep=0; arA=null; arB=null;
   arSceneScale=1; arRotY=0;
   arStartHit();
-  arSetSt('Tap 1 → premier coin','scan');
+  arSetSt('Tap 1 → coin haut-gauche du plan','scan');
   arUpdBtn();
 }
 let arOffY=0, arSetVisible=false;
@@ -211,7 +213,16 @@ function mkM(gl,v,i){const vbo=gl.createBuffer(),ibo=gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,i,gl.STATIC_DRAW);
   return{vbo,ibo,count:i.length};}
 function mkL(gl,v){const vbo=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vbo);gl.bufferData(gl.ARRAY_BUFFER,v,gl.STATIC_DRAW);return{vbo,count:v.length/3};}
-function mkLD(d){return mkL(arGL,new Float32Array(d));}
+// Lignes dynamiques : un seul buffer GL réutilisé (dessiné aussitôt après l'appel).
+// Avant : un buffer créé à chaque ligne et à chaque image, jamais libéré.
+let arDynVbo=null;
+function mkLD(d){
+  const gl=arGL;
+  if(!arDynVbo) arDynVbo=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,arDynVbo);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(d),gl.DYNAMIC_DRAW);
+  return {vbo:arDynVbo,count:d.length/3};
+}
 
 const AM={
   id(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])},
@@ -302,16 +313,23 @@ function arLoop(t,frame){
       mnx=Math.min(mnx,p.x); mxx=Math.max(mxx,p.x);
       mny=Math.min(mny,p.y); mxy=Math.max(mxy,p.y);
     }
-    const rcx=(mnx+mxx)/2, rcz=(mny+mxy)/2;
+    const ox=mnx, oz=mny;   // origine = coin haut-gauche du plan, ancré sur le point A
     const sc=arSceneScale;
     const RH=SC.roomH||2.5, rW=(mxx-mnx)*sc, rD=(mxy-mny)*sc;
     const baseM=AM.mul(AM.T(arAnchorX,arAnchorY+arOffY,arAnchorZ),AM.RY(arRotY));
-    const wM=(lx,ly,lz)=>AM.mul(baseM,AM.T((lx-rcx)*sc,ly,-(lz-rcz)*sc));
+    const wM=(lx,ly,lz)=>AM.mul(baseM,AM.T((lx-ox)*sc,ly,(lz-oz)*sc));
     const wMS=(lx,ly,lz,sx,sy,sz)=>AM.mul(wM(lx,ly,lz),AM.S(sx*sc,sy,sz*sc));
 
     // Helper : box avec couleur de matériau
     const arBox=(cx,cy,cz, w,h,d, alpha, tint)=>{
       arDM(proj,viewM,wMS(cx,cy,cz,w,h,d),arGeo.cube,alpha||1,tint||[0.85,0.85,0.88]);
+    };
+    // Boîte locale à un objet tourné : (lx,lz) = décalage dans le repère de l'objet
+    const arBoxS=(o, lx,cy,lz, w,h,d, alpha, tint)=>{
+      const cs=Math.cos(o.rot||0), sn=Math.sin(o.rot||0);
+      const wx=o.x+lx*cs-lz*sn, wz=o.y+lx*sn+lz*cs;
+      const m=AM.mul(wM(wx,cy,wz), AM.mul(AM.RY(-(o.rot||0)), AM.S(w*sc,h,d*sc)));
+      arDM(proj,viewM,m,arGeo.cube,alpha||1,tint||[0.85,0.85,0.88]);
     };
     // Helper : ligne au sol
     const arLine=(verts, r,g,b,a)=>{
@@ -335,16 +353,16 @@ function arLoop(t,frame){
     // ── SOL CARRELÉ ──
     if(arLayers.walls){
       // Dalle principale (gris clair)
-      arBox(rcx,0.005,rcz, mxx-mnx, 0.01, mxy-mny, 0.65, COL_FLOOR);
+      arBox((mnx+mxx)/2,0.005,(mny+mxy)/2, mxx-mnx, 0.01, mxy-mny, 0.65, COL_FLOOR);
       // Lignes de joints carrelage 40cm
       const ts=0.40;
       for(let x=mnx; x<=mxx+0.01; x+=ts){
-        const lx=(x-rcx)*sc;
-        arLine([lx,0.012,-rD/2, lx,0.012,rD/2], 0.20, 0.25, 0.30, 0.7);
+        const lx=(x-ox)*sc;
+        arLine([lx,0.012,0, lx,0.012,rD], 0.20, 0.25, 0.30, 0.7);
       }
       for(let z=mny; z<=mxy+0.01; z+=ts){
-        const lz=-(z-rcz)*sc;
-        arLine([-rW/2,0.012,lz, rW/2,0.012,lz], 0.20, 0.25, 0.30, 0.7);
+        const lz=(z-oz)*sc;
+        arLine([0,0.012,lz, rW,0.012,lz], 0.20, 0.25, 0.30, 0.7);
       }
 
       // ── MURS PLEINS avec ouvertures découpées ──
@@ -388,8 +406,8 @@ function arLoop(t,frame){
               if(len<=0.001) return;
               const px = a.x + (b.x-a.x)*tMid;
               const pz = a.y + (b.y-a.y)*tMid;
-              const lx = (px-rcx)*sc;
-              const lz = -(pz-rcz)*sc;
+              const lx = (px-ox)*sc;
+              const lz = (pz-oz)*sc;
               const m = AM.mul(AM.mul(baseM, AM.T(lx, y+h/2, lz)), AM.mul(AM.RY(angle), AM.S(wt, h, len*sc)));
               arDM(proj, viewM, m, arGeo.cube, alpha, COL_WALL);
             };
@@ -416,8 +434,8 @@ function arLoop(t,frame){
                 const len = (cut.e-cut.s)*segLen;
                 const px = a.x + (b.x-a.x)*tMid;
                 const pz = a.y + (b.y-a.y)*tMid;
-                const lx = (px-rcx)*sc;
-                const lz = -(pz-rcz)*sc;
+                const lx = (px-ox)*sc;
+                const lz = (pz-oz)*sc;
                 const m = AM.mul(AM.mul(baseM, AM.T(lx, (opGeom(cut.op).y0+opGeom(cut.op).y1)/2, lz)), AM.mul(AM.RY(angle), AM.S(wt*0.4, opGeom(cut.op).y1-opGeom(cut.op).y0, len*sc*0.95)));
                 arDM(proj, viewM, m, arGeo.cube, 0.50, COL_GLASS);
               }
@@ -429,13 +447,13 @@ function arLoop(t,frame){
       // ── ARÊTES ROUGES POUR DÉLIMITER ──
       const corners=[[mnx,mny],[mxx,mny],[mxx,mxy],[mnx,mxy]];
       for(const [cx2,cz2] of corners){
-        const lx=(cx2-rcx)*sc, lz=-(cz2-rcz)*sc;
+        const lx=(cx2-ox)*sc, lz=(cz2-oz)*sc;
         arLine([lx,0.02,lz, lx,RH-0.01,lz], 0.40,0.65,1.0, 0.95);
       }
       for(let i=0;i<4;i++){
         const a=corners[i], b=corners[(i+1)%4];
-        const lax=(a[0]-rcx)*sc, laz=-(a[1]-rcz)*sc;
-        const lbx=(b[0]-rcx)*sc, lbz=-(b[1]-rcz)*sc;
+        const lax=(a[0]-ox)*sc, laz=(a[1]-oz)*sc;
+        const lbx=(b[0]-ox)*sc, lbz=(b[1]-oz)*sc;
         // Arête haute
         arLine([lax,RH-0.01,laz, lbx,RH-0.01,lbz], 0.40,0.65,1.0, 0.85);
         // Arête basse
@@ -452,97 +470,94 @@ function arLoop(t,frame){
         case 'baignoire':
         case 'balneo': {
           // Cuve principale céramique blanche
-          arBox(s.x, h/2, s.y, c.w, h, c.d, 0.95, COL_CERAM);
+          arBoxS(s, 0, h/2, 0, c.w, h, c.d, 0.95, COL_CERAM);
           // Bord intérieur (légèrement plus foncé)
-          arBox(s.x, h*0.90, s.y, c.w*0.86, 0.04, c.d*0.84, 0.7, [0.88,0.90,0.93]);
+          arBoxS(s, 0, h*0.90, 0, c.w*0.86, 0.04, c.d*0.84, 0.7, [0.88,0.90,0.93]);
           // Surface eau bleue
-          arBox(s.x, h*0.85, s.y, c.w*0.82, 0.005, c.d*0.80, 0.65, COL_WATER);
+          arBoxS(s, 0, h*0.85, 0, c.w*0.82, 0.005, c.d*0.80, 0.65, COL_WATER);
           // Robinetterie chromée
-          arBox(s.x-c.w*0.40, h+0.10, s.y-c.d*0.30, 0.05, 0.20, 0.05, 0.95, COL_CHROME);
+          arBoxS(s, 0-c.w*0.40, h+0.10, 0-c.d*0.30, 0.05, 0.20, 0.05, 0.95, COL_CHROME);
           // Bonde (cercle foncé)
-          arBox(s.x+c.w*0.40, h+0.012, s.y, 0.08, 0.005, 0.08, 0.9, [0.30,0.32,0.35]);
+          arBoxS(s, 0+c.w*0.40, h+0.012, 0, 0.08, 0.005, 0.08, 0.9, [0.30,0.32,0.35]);
           // Jets balnéo
           if(s.type==='balneo'){
             [[-0.30,-0.20],[0.30,-0.20],[-0.30,0.20],[0.30,0.20]].forEach(([fx,fz])=>{
-              arBox(s.x+c.w*fx, h*0.50, s.y+c.d*fz, 0.06, 0.06, 0.04, 0.95, [0.45,0.30,0.65]);
+              arBoxS(s, 0+c.w*fx, h*0.50, 0+c.d*fz, 0.06, 0.06, 0.04, 0.95, [0.45,0.30,0.65]);
             });
           }
           break;
         }
         case 'douche_it': {
           // Receveur de douche (plat, bord légèrement saillant)
-          arBox(s.x, h/2+0.02, s.y, c.w, 0.04, c.d, 0.95, COL_CERAM);
+          arBoxS(s, 0, h/2+0.02, 0, c.w, 0.04, c.d, 0.95, COL_CERAM);
           // Bonde centrale (grille foncée)
-          arBox(s.x, h+0.025, s.y, 0.10, 0.005, 0.10, 0.9, [0.35,0.38,0.42]);
-          // Pomme de douche (cube chromé en hauteur)
-          arBox(s.x-c.w*0.30, 2.10, s.y-c.d*0.30, 0.12, 0.05, 0.12, 0.95, COL_CHROME);
-          // Tube vertical
-          arBox(s.x-c.w*0.30, 1.55, s.y-c.d*0.30, 0.025, 1.10, 0.025, 0.95, COL_CHROME);
-          // Robinet mitigeur (plus bas)
-          arBox(s.x-c.w*0.30, 1.05, s.y-c.d*0.30, 0.08, 0.04, 0.06, 0.95, COL_CHROME);
+          arBoxS(s, 0, h+0.025, 0, 0.10, 0.005, 0.10, 0.9, [0.35,0.38,0.42]);
+          // Pomme de douche : à la position réelle du pommeau (déplaçable dans le plan)
+          const pp=pommeauPos(s);
+          arBox(pp.x, 2.10, pp.y, 0.12, 0.05, 0.12, 0.95, COL_CHROME);
+          arBox(pp.x, 1.55, pp.y, 0.025, 1.10, 0.025, 0.95, COL_CHROME);
+          arBox(pp.x, 1.05, pp.y, 0.08, 0.04, 0.06, 0.95, COL_CHROME);
           break;
         }
         case 'lavabo':
         case 'vasque': {
           // Plan de toilette (céramique)
-          arBox(s.x, h-0.03, s.y, c.w, 0.06, c.d, 0.95, COL_CERAM);
+          arBoxS(s, 0, h-0.03, 0, c.w, 0.06, c.d, 0.95, COL_CERAM);
           // Vasque (creux foncé)
-          arBox(s.x, h-0.10, s.y, c.w*0.72, 0.10, c.d*0.72, 0.85, [0.85,0.87,0.90]);
+          arBoxS(s, 0, h-0.10, 0, c.w*0.72, 0.10, c.d*0.72, 0.85, [0.85,0.87,0.90]);
           // Reflet eau
-          arBox(s.x, h-0.06, s.y, c.w*0.65, 0.002, c.d*0.65, 0.4, COL_WATER);
+          arBoxS(s, 0, h-0.06, 0, c.w*0.65, 0.002, c.d*0.65, 0.4, COL_WATER);
           // Robinet chromé
-          arBox(s.x, h+0.08, s.y-c.d*0.35, 0.04, 0.18, 0.04, 0.95, COL_CHROME);
-          arBox(s.x, h+0.18, s.y-c.d*0.20, 0.04, 0.04, 0.08, 0.95, COL_CHROME);
+          arBoxS(s, 0, h+0.08, 0-c.d*0.35, 0.04, 0.18, 0.04, 0.95, COL_CHROME);
+          arBoxS(s, 0, h+0.18, 0-c.d*0.20, 0.04, 0.04, 0.08, 0.95, COL_CHROME);
           break;
         }
         case 'wc': {
           // Cuvette (forme arrondie approximée par boîte)
-          arBox(s.x, h*0.40, s.y+c.d*0.05, c.w*0.85, h*0.45, c.d*0.75, 0.95, COL_WC);
+          arBoxS(s, 0, h*0.40, 0+c.d*0.05, c.w*0.85, h*0.45, c.d*0.75, 0.95, COL_WC);
           // Réservoir au-dessus
-          arBox(s.x, h*0.85, s.y-c.d*0.30, c.w, h*0.30, c.d*0.30, 0.95, COL_WC);
+          arBoxS(s, 0, h*0.85, 0-c.d*0.30, c.w, h*0.30, c.d*0.30, 0.95, COL_WC);
           // Lunette (foncée)
-          arBox(s.x, h*0.65, s.y+c.d*0.08, c.w*0.78, 0.02, c.d*0.65, 0.85, [0.30,0.32,0.36]);
+          arBoxS(s, 0, h*0.65, 0+c.d*0.08, c.w*0.78, 0.02, c.d*0.65, 0.85, [0.30,0.32,0.36]);
           // Bouton chasse
-          arBox(s.x, h*0.95, s.y-c.d*0.30, 0.08, 0.02, 0.04, 0.9, COL_CHROME);
+          arBoxS(s, 0, h*0.95, 0-c.d*0.30, 0.08, 0.02, 0.04, 0.9, COL_CHROME);
           break;
         }
         case 'bidet': {
-          arBox(s.x, h/2, s.y, c.w, h, c.d, 0.95, COL_WC);
+          arBoxS(s, 0, h/2, 0, c.w, h, c.d, 0.95, COL_WC);
           // Vasque
-          arBox(s.x, h-0.04, s.y, c.w*0.72, 0.08, c.d*0.72, 0.8, [0.85,0.87,0.90]);
+          arBoxS(s, 0, h-0.04, 0, c.w*0.72, 0.08, c.d*0.72, 0.8, [0.85,0.87,0.90]);
           // Robinet
-          arBox(s.x, h+0.05, s.y-c.d*0.30, 0.04, 0.10, 0.04, 0.95, COL_CHROME);
+          arBoxS(s, 0, h+0.05, 0-c.d*0.30, 0.04, 0.10, 0.04, 0.95, COL_CHROME);
           break;
         }
         default:
-          arBox(s.x, h/2, s.y, c.w, h, c.d, 0.85, [0.80,0.82,0.85]);
+          arBoxS(s, 0, h/2, 0, c.w, h, c.d, 0.85, [0.80,0.82,0.85]);
       }
     }
 
     // ── ZONES NF C 15-100 ──
     if(arLayers.zones && !hideZones()){
-      const ZH=2.25;
-      const sanZ = SC.sanitaires.filter(s => CAT_SAN[s.type]?.genZone);
-      if(sanZ.length){
+      const ZH=2.25, STEP=0.20;
+      if(!arZoneCells){
+        arZoneCells=[];
         const roomPoly = SC.walls.length && SC.walls[0].closed ? SC.walls[0].pts : null;
-        const STEP = 0.20;
         for(let mx=mnx; mx<mxx; mx+=STEP){
           for(let mz=mny; mz<mxy; mz+=STEP){
-            const cx2 = mx + STEP/2, cz2 = mz + STEP/2;
+            const cx2=mx+STEP/2, cz2=mz+STEP/2;
             if(roomPoly && !ptInPoly(cx2, cz2, roomPoly)) continue;
-            if(inV0(cx2, cz2)) continue;
-            const d = distToV0(cx2, cz2);
-            if(d > 120) continue;
-            const isZ1 = d<=60;
-            // Volume vertical jusqu'à 2.25m
-            arBox(cx2, ZH/2, cz2, STEP*0.95, ZH, STEP*0.95, isZ1?0.20:0.14, isZ1?COL_Z1:COL_Z2);
+            const z=getZone(cx2, cz2, 1.0);
+            if(z===1||z===2) arZoneCells.push({x:cx2, z:cz2, v:z});
           }
         }
-        // Z0 : empreintes rouges
-        for(const s of sanZ){
-          const c=CAT_SAN[s.type];
-          arBox(s.x, sanH(s)/2 + 0.005, s.y, c.w*1.02, sanH(s)*1.02, c.d*1.02, 0.30, COL_Z0);
-        }
+      }
+      for(const q of arZoneCells){
+        arBox(q.x, ZH/2, q.z, STEP*0.95, ZH, STEP*0.95, q.v===1?0.20:0.14, q.v===1?COL_Z1:COL_Z2);
+      }
+      // Z0 : empreintes rouges (tournées avec le sanitaire)
+      for(const s of SC.sanitaires){
+        const c=CAT_SAN[s.type]; if(!c?.genZone) continue;
+        arBoxS(s, 0, sanH(s)/2 + 0.005, 0, c.w*1.02, sanH(s)*1.02, c.d*1.02, 0.30, COL_Z0);
       }
     }
 
