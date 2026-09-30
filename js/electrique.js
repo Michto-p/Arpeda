@@ -106,4 +106,5 @@ function closePS(name){
   if(name==='el'){ selElId=-1; redraw('el'); }
   if(name==='wall'){ selWallIdx=-1; redraw('draw'); }
   if(name==='op'){ selOpId=-1; redraw('open'); }
+  if(STUDIO.active) studioPanelRefresh();
 }

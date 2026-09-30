@@ -69,15 +69,15 @@ function sanitizeScene(sc){
   const roomH = _isNum(sc.roomH) ? Math.min(3.5, Math.max(2.0, sc.roomH)) : 2.5;
   const maxId = Math.max(0, ...[...openings, ...sanitaires, ...electrique, ...sc.meubles].map(x=>_isNum(x.id)?x.id:0));
   const idSeq = Math.max(maxId, _isNum(sc.idSeq) ? sc.idSeq : 0);
-  return {walls, openings, sanitaires, electrique, meubles: sc.meubles, roomH, idSeq, install: normalizeInstall(sc.install), exercise: normalizeExercise(sc.exercise), arRef: normalizeArRef(sc.arRef)};
+  return {walls, openings, sanitaires, electrique, meubles: sc.meubles, roomH, idSeq, install: normalizeInstall(sc.install), exercise: normalizeExercise(sc.exercise), arRef: normalizeArRef(sc.arRef), name: typeof sc.name==='string' ? sc.name.slice(0,80) : ''};
 }
 
-function applyScene(sc){
+function applyScene(sc, opts){
   const clean = sanitizeScene(sc);
   Object.assign(SC, clean);
   curPoly = [];
   selSanId = -1; selElId = -1; selMeuId = -1; selWallIdx = -1; selOpId = -1;
-  for(const k in VIEWS) VIEWS[k].init = false;
+  if(!(opts && opts.keepView)) for(const k in VIEWS) VIEWS[k].init = false;
   refreshElements();
   const rng = document.getElementById('rngH');
   if(rng) rng.value = SC.roomH;
@@ -95,7 +95,7 @@ function refreshElements(){
 
 // ── localStorage ──
 function saveNow(){
-  if(EXO.active) return;   // ne jamais écraser le projet du formateur
+  if(EXO.active || VIEWER.active) return;   // ne jamais écraser le projet du formateur
   clearTimeout(_saveTimer); _saveTimer = null;
   try{
     const snap = projectSnapshot();
@@ -107,7 +107,7 @@ function saveNow(){
 }
 
 function scheduleSave(){
-  if(EXO.active) return;
+  if(EXO.active || VIEWER.active) return;
   if(_saveTimer) return;
   _saveTimer = setTimeout(saveNow, 500);
 }
@@ -127,15 +127,15 @@ function resumeProject(){
   if(!snap){ toast('Aucun projet sauvegardé'); refreshHome(); return; }
   applyScene(snap.scene);
   _lastSaved = JSON.stringify(snap.scene);
-  enterApp();
+  openEditor();
 }
 
 async function newProject(){
   const snap = readSaved();
   if(snap && !await askConfirm('Un projet sauvegardé existe. Le remplacer par un nouveau projet ?')) return;
-  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], meubles:[], roomH:2.5, idSeq:0, install:normalizeInstall(null), exercise:defaultExercise(), arRef:null});
+  Object.assign(SC, {walls:[], openings:[], sanitaires:[], electrique:[], meubles:[], roomH:2.5, idSeq:0, install:normalizeInstall(null), exercise:defaultExercise(), arRef:null, name:''});
   applyScene(SC);
-  enterApp();
+  openEditor();
 }
 
 function refreshHome(){
@@ -189,7 +189,7 @@ function onImportFile(input){
       applyScene(snap.scene);
       saveNow();
       toast('Projet importé');
-      enterApp();
+      openEditor();
     }catch(e){
       toast('Import impossible : '+e.message);
     }

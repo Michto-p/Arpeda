@@ -5,6 +5,11 @@
 // ════════════════════════════════
 refreshHome();
 
+document.body.classList.add(isDesktop()?'is-desktop':'is-mobile');
+
+// Projet reçu du PC : …#ar=<code>
+if(/^#ar=/.test(location.hash)) openViewerFromCode(location.hash.slice(4));
+
 // Ouverture d'un exercice depuis un lien / QR : …#ex=<code>
 if(/^#ex=/.test(location.hash)) openExerciseFromCode(location.hash.slice(4));
 

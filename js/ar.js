@@ -64,7 +64,7 @@ async function startAR(){
     });
   }catch(e){
     document.getElementById('scrAR').style.display='none';
-    document.getElementById('app').style.display='flex';
+    arBackScreen();
     alert('Erreur AR: '+e.message); return;
   }
 
@@ -75,7 +75,7 @@ async function startAR(){
 
   arSes.addEventListener('end',()=>{
     document.getElementById('scrAR').style.display='none';
-    document.getElementById('app').style.display='flex';
+    arBackScreen();
     arSes=null; arBuilt=false;
   });
   arSes.addEventListener('select', arOnTap);
@@ -95,7 +95,7 @@ async function startAR(){
   if(!arGL){
     alert('WebGL non disponible');
     document.getElementById('scrAR').style.display='none';
-    document.getElementById('app').style.display='flex';
+    arBackScreen();
     return;
   }
   await arGL.makeXRCompatible();
@@ -122,6 +122,12 @@ async function arStartHit(){
   arHitSrc=await arSes.requestHitTestSource({space:vs});
 }
 function arStopHit(){ if(arHitSrc){ try{arHitSrc.cancel();}catch{} arHitSrc=null; } }
+
+// Écran affiché à la sortie de la RA : accueil (visionneuse) ou application (assistant / exercice)
+function arBackScreen(){
+  if(VIEWER.active) document.getElementById('home').style.display='flex';
+  else document.getElementById('app').style.display='flex';
+}
 
 function arMsgA(){
   const r=getArRef();

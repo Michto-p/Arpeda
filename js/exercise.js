@@ -164,7 +164,7 @@ async function decodeExercise(code){
   return p;
 }
 function exoHash(code){ let h=5381; for(let i=0;i<code.length;i++) h=((h*33)^code.charCodeAt(i))>>>0; return h.toString(36); }
-function exoBaseUrl(){ return location.href.split('#')[0]; }
+function exoBaseUrl(){ return location.href.split('#')[0].split('?')[0]; }
 
 // ════════════════════════════════
 //  FORMATEUR : écran « Exercice »

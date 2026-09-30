@@ -22,6 +22,7 @@ function exitApp(){
 }
 
 function goStep(n){
+  if(STUDIO.active){ studioGoStep(n); return; }
   curStep=n;
   for(let i=0;i<8;i++){
     const sc=document.getElementById('s'+i);

@@ -4,8 +4,8 @@
 //  CANVAS GÉNÉRIQUE
 // ════════════════════════════════
 function getCanvas(name){
-  const wrapId = {draw:'wDraw',open:'wOpen',san:'wSan',el:'wEl'}[name];
-  const cvId   = {draw:'cvDraw',open:'cvOpen',san:'cvSan',el:'cvEl'}[name];
+  const wrapId = {draw:'wDraw',open:'wOpen',san:'wSan',el:'wEl',studio:'wStudio'}[name];
+  const cvId   = {draw:'cvDraw',open:'cvOpen',san:'cvSan',el:'cvEl',studio:'cvStudio'}[name];
   return {wrap:document.getElementById(wrapId), cv:document.getElementById(cvId)};
 }
 
@@ -22,7 +22,7 @@ function initCanvas(name){
   if(!VIEWS[name].init){
     VIEWS[name].init=true;
     fitView(name);
-    setupCanvasEvents(name, cv);
+    if(name==='studio') setupStudioEvents(cv); else setupCanvasEvents(name, cv);
   }
   redraw(name);
 }
@@ -49,7 +49,8 @@ function fitView(name){
 }
 
 function zoom(name, factor){
-  VIEWS[name].sc = Math.max(30, Math.min(400, VIEWS[name].sc*factor));
+  const lim = name==='studio' ? [15,800] : [30,400];
+  VIEWS[name].sc = Math.max(lim[0], Math.min(lim[1], VIEWS[name].sc*factor));
   redraw(name);
 }
 function zoomFit(name){ fitView(name); redraw(name); }

@@ -5,6 +5,7 @@
 // ════════════════════════════════
 function redraw(name){
   scheduleSave();
+  if(STUDIO.active){ studioRender(); histSoon(); return; }
   const {cv} = getCanvas(name);
   if(!cv) return;
   const ctx = cv.getContext('2d');

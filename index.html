@@ -15,10 +15,21 @@
 <div id="home">
   <div class="h-logo">Élec<span>Studio</span></div>
   <div class="h-sub">Concevez votre salle de bain et visualisez les zones NF C 15-100 en réalité augmentée.</div>
-  <button class="h-btn primary" onclick="newProject()">✦ Nouveau projet</button>
-  <button class="h-btn secondary" id="btnResume" style="display:none" onclick="resumeProject()">↻ Reprendre le projet</button>
-  <button class="h-btn secondary" onclick="startAR()">📷 Voir en RA</button>
-  <button class="h-btn secondary" onclick="importProject()">📂 Importer un projet</button>
+  <div id="homeMain" class="h-col">
+    <button class="h-btn primary only-desktop" onclick="newProject()">✦ Nouveau projet</button>
+    <button class="h-btn primary only-mobile" onclick="startARFromHome()">📷 Voir en RA</button>
+    <button class="h-btn secondary" id="btnResume" style="display:none" onclick="resumeProject()">↻ Reprendre le projet</button>
+    <button class="h-btn secondary" onclick="importProject()">📂 Ouvrir un projet ou un exercice</button>
+    <button class="h-btn ghost only-mobile" onclick="newProject()">✏️ Édition simplifiée (téléphone)</button>
+    <div class="h-note only-mobile">Pour créer une pièce, utilisez l'éditeur sur ordinateur, puis scannez le QR « Envoyer à la RA ».</div>
+    <div class="h-note only-desktop">Le téléphone sert à la réalité augmentée : « Envoyer à la RA » dans l'éditeur génère un QR à scanner.</div>
+  </div>
+  <div id="homeViewer" class="h-col" style="display:none">
+    <div id="viewerTitle" style="font-weight:800;font-size:1.05rem"></div>
+    <div id="viewerInfo" class="h-note"></div>
+    <button class="h-btn primary" onclick="startAR()">📷 Démarrer la RA</button>
+    <button class="h-btn ghost" onclick="exitViewer()">Quitter</button>
+  </div>
   <input type="file" id="fileImport" accept="application/json,.json" hidden onchange="onImportFile(this)">
   <div class="h-ver" id="hVer"></div>
 </div>
@@ -348,6 +359,77 @@
   </div>
 </div>
 
+<!-- ══ ÉDITEUR PC (studio) ══ -->
+<div id="studio">
+  <header class="st-top">
+    <div class="st-logo">Élec<span>Studio</span></div>
+    <input id="stName" class="st-name" placeholder="Nom du projet" maxlength="80" onchange="SC.name=this.value;histCommit();scheduleSave()">
+    <div class="st-grp">
+      <button id="stUndo" class="st-btn" title="Annuler (Ctrl+Z)" onclick="histUndo()">↶</button>
+      <button id="stRedo" class="st-btn" title="Rétablir (Ctrl+Y)" onclick="histRedo()">↷</button>
+    </div>
+    <nav class="st-tabs">
+      <button data-tab="plan" class="on" onclick="studioTab('plan')">📐 Plan</button>
+      <button data-tab="3d" onclick="studioTab('3d')">🧊 3D</button>
+      <button data-tab="verif" onclick="studioTab('verif')">✅ Vérification</button>
+      <button data-tab="exo" onclick="studioTab('exo')">🎓 Exercice</button>
+    </nav>
+    <div class="st-sp"></div>
+    <div class="st-grp">
+      <button class="st-btn wide" onclick="studioShareAR()" title="Générer le lien / QR pour le téléphone">📱 Envoyer à la RA</button>
+      <button class="st-btn wide" onclick="exportProject()" title="Exporter le projet (.json)">💾 Exporter</button>
+      <button class="st-btn wide" onclick="importProject()" title="Importer un projet">📂 Importer</button>
+      <button class="st-btn wide" onclick="studioExit()" title="Retour à l'accueil">⌂ Accueil</button>
+    </div>
+  </header>
+  <div class="st-body">
+    <aside class="st-tools" id="stTools"></aside>
+    <aside class="st-catalog" id="stCatalog"></aside>
+    <main class="st-main">
+      <div class="st-pane on" id="stPlan">
+        <div class="cv-wrap" id="wStudio">
+          <canvas id="cvStudio" class="main"></canvas>
+          <div class="st-hint" id="stHint"></div>
+          <div class="st-typed" id="stTyped" style="display:none"></div>
+          <input class="st-len" id="stLen" style="display:none" inputmode="decimal">
+          <div class="st-zoom">
+            <button onclick="zoom('studio',1.25)" title="Zoom +">+</button>
+            <button onclick="zoom('studio',0.8)" title="Zoom −">−</button>
+            <button onclick="studioFit()" title="Tout voir (Home)">⊡</button>
+          </div>
+        </div>
+      </div>
+      <div class="st-pane" id="st3D"></div>
+      <div class="st-pane" id="stVerif"></div>
+      <div class="st-pane" id="stExo"></div>
+    </main>
+    <aside class="st-props" id="stProps">
+      <div id="stPropsHost"></div>
+      <div id="stPropsDefault"></div>
+    </aside>
+  </div>
+  <footer class="st-status">
+    <span id="stCoord">x 0.00 · y 0.00 m</span>
+    <span class="st-sep"></span>
+    <label><input type="checkbox" id="stOptGrid" checked onchange="ST.opts.grid=this.checked;redraw('studio')"> Grille</label>
+    <label><input type="checkbox" id="stOptSnap" checked onchange="ST.opts.snap=this.checked"> Accrochage</label>
+    <label><input type="checkbox" id="stOptOrtho" checked onchange="ST.opts.ortho=this.checked"> Ortho</label>
+    <label><input type="checkbox" id="stOptDims" checked onchange="ST.opts.dims=this.checked;redraw('studio')"> Cotes</label>
+    <span class="st-sp"></span>
+    <span id="stZoom">100 %</span>
+  </footer>
+</div>
+
+<!-- PARTAGE (lien / QR) -->
+<div id="dlgShare" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:20px">
+  <div style="background:var(--sur);border:1px solid var(--bor);border-radius:14px;padding:18px;max-width:380px;width:100%;max-height:90vh;overflow:auto">
+    <div style="font-weight:800;font-size:.95rem;margin-bottom:8px">📱 Ouvrir sur le téléphone</div>
+    <div style="font-size:.72rem;color:var(--mid);margin-bottom:8px">Scannez avec l'appareil photo du téléphone, puis touchez « Démarrer la RA ».</div>
+    <div id="shareBody"></div>
+    <button class="nav-btn prev" style="width:100%;margin-top:10px" onclick="document.getElementById('dlgShare').style.display='none'">Fermer</button>
+  </div>
+</div>
+
 <!-- CRÉATION RAPIDE DE PIÈCE -->
 <div id="dlgRoom" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:20px">
   <div style="background:var(--sur);border:1px solid var(--bor);border-radius:14px;padding:18px;max-width:340px;width:100%">
@@ -406,6 +488,9 @@
 <script src="js/view3d.js"></script>
 <script src="js/ar.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/history.js"></script>
+<script src="js/studio.js"></script>
+<script src="js/studio-canvas.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
