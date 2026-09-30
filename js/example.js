@@ -57,3 +57,11 @@ async function loadExample(variant){
   } else openEditor();
   saveNow();
 }
+
+// Téléphone : ouvre un exemple en visionneuse (lecture seule, rien n'est enregistré) puis « Démarrer la RA »
+function startExampleViewer(variant){
+  const sc=exampleScene(variant);
+  startViewer({s:sc, t:sc.name});
+  for(const e of SC.electrique) if(CAT_EL[e.type].mount==='wall') elMountToWall(e, 0.5);   // appareillage plaqué
+  refreshElements();
+}

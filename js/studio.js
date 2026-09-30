@@ -227,7 +227,7 @@ async function openViewerFromCode(code){
 function startARFromHome(){
   if(!SC.walls.length){
     const snap=readSaved();
-    if(!snap){ toast("Aucun projet : scannez le QR de l'éditeur ou ouvrez un fichier"); return; }
+    if(!snap){ startExampleViewer('ok'); toast("Aucun projet enregistré : exemple chargé"); return; }
     applyScene(snap.scene);
   }
   startAR();
