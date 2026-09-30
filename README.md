@@ -27,6 +27,8 @@ Plan à l'échelle façon logiciel d'architecte : murs à l'épaisseur réelle (
 
 - **Tracer** : `W` (murs, cloisons) — clics pour poser les points, ou tapez la longueur (`320` = 3,20 m, `3.2` aussi) puis Entrée ; Entrée ferme la pièce. `R` : rectangle, 2 clics ou `320x240` + Entrée.
 - **Modifier** : glisser un sommet, un mur ou un objet ; poignée « + » pour ajouter un sommet ; poignée ⟳ pour pivoter ; double-clic sur un mur pour taper sa longueur ; les hauteurs, IP, classes, matériaux se règlent dans le panneau de droite.
+- **Cotes utiles** : par défaut les cotes sont prises **entre parements intérieurs** (affichées dans la pièce, avec la surface utile) ; la barre d'état permet de passer aux cotes d'axe ou d'afficher les deux. « 300x240 » crée une pièce de 3,00 × 2,40 m utiles ; double-clic sur un côté pour taper sa longueur utile (le mur opposé suit sur une pièce rectangulaire).
+- **Équipement type (touche K)** : pose en un clic un point d'éclairage, un interrupteur (côté poignée de la porte) et une prise 16 A (près du lavabo) aux emplacements qui passent les règles NF C 15-100 ; ne duplique pas ce qui existe, s'annule d'un `Ctrl+Z`.
 - **Confort** : annuler/refaire 100 niveaux (`Ctrl+Z` / `Ctrl+Y`), copier/coller, `Suppr`, flèches, molette + `Espace` pour la vue, `?` pour la liste des raccourcis.
 - **Onglets** : Plan, 3D, Vérification (score et rapport), Exercice.
 
@@ -74,6 +76,7 @@ js/               scripts classiques (pas de modules : les handlers onclick util
   render.js       rendu canvas 2D      view3d.js  vue 3D WebGL      ar.js  WebXR
   studio.js       éditeur PC : coque, outils, catalogue, onglets, envoi vers le téléphone
   studio-canvas.js éditeur PC : plan, accrochage, souris, clavier, rendu
+  kit.js          équipement type d'une salle d'eau (un clic)
   history.js      annuler / refaire
   meubles.js      meubles et appareils
   exercise.js     exercices formateur / apprenti, correction, notation

@@ -415,6 +415,7 @@
     <label><input type="checkbox" id="stOptSnap" checked onchange="ST.opts.snap=this.checked"> Accrochage</label>
     <label><input type="checkbox" id="stOptOrtho" checked onchange="ST.opts.ortho=this.checked"> Ortho</label>
     <label><input type="checkbox" id="stOptDims" checked onchange="ST.opts.dims=this.checked;redraw('studio')"> Cotes</label>
+    <select id="stDimMode" title="Cotes : entre parements intérieurs (utiles), entre axes des murs, ou les deux" onchange="ST.opts.dimMode=this.value;redraw('studio');studioPanelRefresh()" style="background:var(--bor2);color:var(--txt2);border:1px solid var(--bor);border-radius:6px;font-size:.66rem;padding:1px 4px"><option value="int" selected>utiles (parements)</option><option value="axe">axes</option><option value="both">les deux</option></select>
     <span class="st-sp"></span>
     <button class="st-btn" style="height:22px;font-size:.65rem" onclick="document.getElementById('dlgKeys').style.display='flex'">⌨ Raccourcis</button>
     <span id="stZoom">100 %</span>
@@ -439,6 +440,7 @@
     <div class="st-kv"><span>Ctrl+Z / Ctrl+Y</span><b>Annuler / rétablir</b></div>
     <div class="st-kv"><span>Ctrl+C / V / D</span><b>Copier / coller / dupliquer</b></div>
     <div class="st-kv"><span>Flèches (Maj = 10 cm)</span><b>Déplacer de 1 cm</b></div>
+    <div class="st-kv"><span>K</span><b>Équipement type (luminaire, interrupteur, prise)</b></div>
     <div class="st-kv"><span>Ctrl+S · Début</span><b>Enregistrer · tout voir</b></div>
   </div>
 </div>
@@ -513,6 +515,7 @@
 <script src="js/storage.js"></script>
 <script src="js/history.js"></script>
 <script src="js/studio.js"></script>
+<script src="js/kit.js"></script>
 <script src="js/studio-canvas.js"></script>
 <script src="js/main.js"></script>
 </body>

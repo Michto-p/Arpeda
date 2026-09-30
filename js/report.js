@@ -123,7 +123,7 @@ th{background:#f1f5f9;font-size:11px;text-transform:uppercase;letter-spacing:.4p
 
 <h2>Synthèse</h2>
 <div><span class="score">${ev.score}%</span> &nbsp; ${ev.errs} erreur(s) · ${ev.warns} alerte(s)</div>
-<div class="mut">Surface ${roomArea().toFixed(2)} m² · hauteur ${SC.roomH.toFixed(2)} m · volume ${v.roomVol.toFixed(2)} m³ ·
+<div class="mut">Surface utile ${roomAreaUseful().toFixed(2)} m² (axes ${roomArea().toFixed(2)} m²) · hauteur ${SC.roomH.toFixed(2)} m · volume ${v.roomVol.toFixed(2)} m³ ·
 Volume 0 : ${v.z0.toFixed(2)} m³ · Volume 1 : ${v.z1.toFixed(2)} m³ · Volume 2 : ${v.z2.toFixed(2)} m³</div>
 
 <h2>Plan</h2>

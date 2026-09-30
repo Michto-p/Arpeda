@@ -40,7 +40,8 @@ function buildTools(){
 
 function buildCatalog(){
   const host=document.getElementById('stCatalog');
-  host.innerHTML = studioCatalog().map(([title,items])=>`
+  host.innerHTML = `<button class="nav-btn next" style="width:100%;margin-bottom:6px" onclick="studioAutoKit()" title="Pose un point d'éclairage, un interrupteur et une prise aux emplacements conformes — touche K">⚡ Équipement type</button>
+    <div style="font-size:.6rem;color:var(--mid);line-height:1.4;margin:0 2px 4px">Luminaire, interrupteur et prise 16 A posés aux emplacements conformes (touche K).</div>` + studioCatalog().map(([title,items])=>`
     <h4>${title}</h4>
     <div class="st-cat-grid">${items.map((it,i)=>`
       <div class="st-item" draggable="true" data-kind="${it[0]}" data-type="${it[1]}" data-w="${(it[4]&&it[4].w)||''}" title="${it[3]}"
@@ -137,7 +138,8 @@ function renderStudioInfo(){
     <h3>Projet</h3>
     <div class="pf" style="margin-bottom:8px"><div class="pf-l">Hauteur sous plafond (m)</div>
       <input type="number" value="${SC.roomH.toFixed(2)}" step="0.05" min="2" max="3.5" onchange="setRoomH(Math.min(3.5,Math.max(2,+this.value||2.5)));histCommit();renderStudioInfo()"></div>
-    <div class="st-kv"><span>Surface (axes)</span><b>${roomArea().toFixed(2)} m²</b></div>
+    <div class="st-kv"><span>Surface utile</span><b>${roomAreaUseful().toFixed(2)} m²</b></div>
+    <div class="st-kv"><span>Surface entre axes</span><b>${roomArea().toFixed(2)} m²</b></div>
     <div class="st-kv"><span>Murs</span><b>${SC.walls.length}</b></div>
     <div class="st-kv"><span>Ouvertures</span><b>${SC.openings.length}</b></div>
     <div class="st-kv"><span>Sanitaires / meubles</span><b>${SC.sanitaires.length} / ${SC.meubles.length}</b></div>

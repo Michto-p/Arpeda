@@ -11,7 +11,7 @@ const ST = {
   down:null, drag:null, hover:null,               // gestes
   space:false, pan:null,
   measure:null, selV:null, selSeg:null,
-  opts:{grid:true, snap:true, ortho:true, dims:true},
+  opts:{grid:true, snap:true, ortho:true, dims:true, dimMode:'int'},   // dimMode : 'int' (utiles) | 'axe' | 'both'
   noSnap:false, shift:false, clip:null, keysOn:false, zc:null, hatch:null, lenEdit:null,
 };
 
@@ -48,6 +48,16 @@ function stOffset(pts, closed, d){
   }
   return out;
 }
+// Anneau intérieur d'une pièce fermée (faces intérieures des murs) : décalage de -e/2 vers l'intérieur
+function stInnerRing(w){
+  const T=stWallThick(w), a=stOffset(w.pts,true,T/2), b=stOffset(w.pts,true,-T/2);
+  return Math.abs(stSignedArea(a))<Math.abs(stSignedArea(b)) ? a : b;
+}
+function stUsefulArea(w){ return Math.abs(stSignedArea(stInnerRing(w))); }
+// Surface utile totale (entre parements intérieurs) — calc.js roomArea() reste la surface entre axes
+function roomAreaUseful(){ let a=0; for(const w of SC.walls) if(w.closed && w.pts.length>=3) a+=stUsefulArea(w); return a; }
+const stDimInt = ()=> ST.opts.dimMode!=='axe';    // les saisies suivent les cotes utiles
+
 // Normale unitaire d'un segment orientée vers l'intérieur de la pièce (murs fermés), sinon la gauche
 function stInwardNormal(w, si){
   const pts=stWallPts(w), a=pts[si], b=pts[si+1];
@@ -269,13 +279,17 @@ function stParseLen(str){
   const v=parseFloat(s); if(!isFinite(v)) return NaN;
   return /[.]/.test(s) ? v : v/100;    // sans point : centimètres
 }
+// Longueur affichée d'un côté : entre parements (pièce fermée, mode utile) ou entre axes
+function stAxisLen(w,si){ const pts=stWallPts(w); return _d(pts[si],pts[si+1]); }
+function stInnerLen(w,si){ const r=stInnerRing(w), n=r.length; return _d(r[si],r[(si+1)%n]); }
+function stDisplayedLen(w,si){ return (w.closed && stDimInt()) ? stInnerLen(w,si) : stAxisLen(w,si); }
 function stEditLength(wi, si){
   const w=SC.walls[wi]; if(!w) return;
   const pts=stWallPts(w), a=pts[si], b=pts[si+1];
   const v=VIEWS.studio, m=mToScreen((a.x+b.x)/2,(a.y+b.y)/2,v);
   const inp=document.getElementById('stLen');
   inp.style.left=m.x+'px'; inp.style.top=m.y+'px'; inp.style.display='block';
-  inp.value=_d(a,b).toFixed(2); ST.lenEdit={wi,si}; inp.focus(); inp.select();
+  inp.value=stDisplayedLen(w,si).toFixed(2); ST.lenEdit={wi,si}; inp.focus(); inp.select();
 }
 function stApplyLength(){
   const inp=document.getElementById('stLen'), le=ST.lenEdit; ST.lenEdit=null; inp.style.display='none';
@@ -284,7 +298,14 @@ function stApplyLength(){
   const L=stParseLen(inp.value); if(!(L>0.05&&L<50)){ toast('Longueur invalide'); return; }
   const n=w.pts.length, i0=le.si, i1=(le.si+1)%n;
   const a=w.pts[i0], b=w.pts[i1], u=_unit(b.x-a.x,b.y-a.y);
-  b.x=a.x+u.x*L; b.y=a.y+u.y*L;
+  // longueur d'axe = longueur saisie − écart (parements/axe) : l'écart ne dépend que des angles voisins
+  const axis = (w.closed && stDimInt()) ? L-(stInnerLen(w,le.si)-stAxisLen(w,le.si)) : L;
+  if(!(axis>0.05)){ toast('Longueur trop courte'); return; }
+  const dx=a.x+u.x*axis-b.x, dy=a.y+u.y*axis-b.y;
+  // pièce à angles droits : le mur suivant, perpendiculaire, suit (le mur opposé se déplace en entier)
+  const c=w.pts[(i1+1)%n], v2=_unit(c.x-b.x, c.y-b.y), follow = w.closed && n>=4 && Math.abs(u.x*v2.x+u.y*v2.y)<0.02;
+  b.x+=dx; b.y+=dy;
+  if(follow){ c.x+=dx; c.y+=dy; }
   histCommit(); redraw('studio'); studioPanelRefresh();
 }
 
@@ -368,7 +389,7 @@ function stUpdateHint(){
   const h={
     select:'Clic : sélectionner · Glisser : déplacer · Poignées : sommets, rotation · Double-clic sur un mur : longueur · Suppr : effacer',
     wall:'Clic : poser un point · Chiffres + Entrée : longueur exacte (cm, ou m avec un point) · Entrée : fermer · Retour arrière : annuler le point · Échap : terminer',
-    rect:'Clic : 1er coin, puis 2e coin · ou tapez « 320x240 » (cm) puis Entrée',
+    rect:'Clic : 1er coin, puis 2e coin · ou tapez « 300x240 » (cm) puis Entrée — dimensions utiles (entre parements) selon le réglage Cotes',
     door:'Survolez un mur puis cliquez pour poser la porte', window:'Survolez un mur puis cliquez pour poser la fenêtre',
     measure:'Cliquez deux points pour mesurer · Échap pour effacer',
     arref:ST.arA?'Cliquez pour fixer la direction A→B (B est à 1 m de A)':'Cliquez le point A : coin ou repère physique facile à retrouver au sol',
@@ -613,8 +634,10 @@ function stFinishRect(b){
   const a=ST.rectA; ST.rectA=null; ST.typed='';
   const w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
   if(w<0.3||h<0.3){ toast('Pièce trop petite'); redraw('studio'); return; }
-  const x0=Math.min(a.x,b.x), y0=Math.min(a.y,b.y);
-  const wi=stCreateWall([{x:x0,y:y0},{x:x0+w,y:y0},{x:x0+w,y:y0+h},{x:x0,y:y0+h}], true);
+  // mode utile : le rectangle saisi est l'intérieur de la pièce, les murs s'ajoutent autour
+  const e = stDimInt() ? stWallThick({comp:'mur_brique_classique'})/2 : 0;
+  const x0=Math.min(a.x,b.x)-e, y0=Math.min(a.y,b.y)-e, W=w+2*e, H=h+2*e;
+  const wi=stCreateWall([{x:x0,y:y0},{x:x0+W,y:y0},{x:x0+W,y:y0+H},{x:x0,y:y0+H}], true);
   histCommit(); setStudioTool('select'); stSelect({kind:'wall',wi,si:0}); if(SC.walls.length===1) fitView('studio'); redraw('studio'); histCommit();
 }
 function stCancelOrFinish(){
@@ -659,6 +682,7 @@ function stKeyDown(e){
   if(k==='Backspace' && ST.tool==='wall' && ST.poly.length){ e.preventDefault(); ST.poly.pop(); redraw('studio'); return; }
   if(k==='Delete'||k==='Backspace'){ e.preventDefault(); stDeleteSelection(); return; }
   if(k==='?'||k==='F1'){ e.preventDefault(); document.getElementById('dlgKeys').style.display='flex'; return; }
+  if(k==='k'||k==='K'){ e.preventDefault(); studioAutoKit(); return; }
   if(k==='Home'){ e.preventDefault(); studioFit(); return; }
   if(k==='+'||k==='='){ zoom('studio',1.25); return; }
   if(k==='-'){ zoom('studio',0.8); return; }
@@ -823,37 +847,55 @@ function stDrawOpenings(ctx, v){
   }
 }
 
+// Ligne de cote : traits de rappel, ligne, repères obliques, valeur
+function stDimLine(ctx, v, P0, P1, ext0, ext1, txt, col, sel){
+  const A=mToScreen(P0.x,P0.y,v), B=mToScreen(P1.x,P1.y,v);
+  const a0=mToScreen(ext0[0].x,ext0[0].y,v), a1=mToScreen(ext0[1].x,ext0[1].y,v), b0=mToScreen(ext1[0].x,ext1[0].y,v), b1=mToScreen(ext1[1].x,ext1[1].y,v);
+  ctx.strokeStyle=sel?'#fde047':col; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(a0.x,a0.y); ctx.lineTo(a1.x,a1.y); ctx.moveTo(b0.x,b0.y); ctx.lineTo(b1.x,b1.y); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+  const tk=4; ctx.beginPath(); for(const P of [A,B]){ ctx.moveTo(P.x-tk,P.y+tk); ctx.lineTo(P.x+tk,P.y-tk); } ctx.stroke();
+  const ang=Math.atan2(B.y-A.y,B.x-A.x), m={x:(A.x+B.x)/2,y:(A.y+B.y)/2};
+  ctx.save(); ctx.translate(m.x,m.y); ctx.rotate(readableAngle(ang));
+  const tw=ctx.measureText(txt).width+10;
+  ctx.fillStyle='#0f1623'; ctx.fillRect(-tw/2,-8,tw,16);
+  ctx.fillStyle=sel?'#fde047':(col.indexOf('134')>=0?'#bbf7d0':'#bae6fd'); ctx.fillText(txt,0,0.5); ctx.restore();
+}
+
 function stDrawDims(ctx, v){
   if(!ST.opts.dims) return;
   ctx.font='11px ui-monospace,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  const mode=ST.opts.dimMode;
   SC.walls.forEach(w=>{
-    const pts=stWallPts(w), T=stWallThick(w), sgn=w.closed&&stSignedArea(w.pts)<0?-1:1;
-    for(let si=0;si<pts.length-1;si++){
-      const a=pts[si], b=pts[si+1], len=_d(a,b);
-      if(len<0.15 || len*v.sc<46) continue;
-      const u=_unit(b.x-a.x,b.y-a.y);
-      // côté extérieur : opposé à l'intérieur pour les pièces fermées, sinon côté gauche
-      const inward = w.closed ? stInwardNormal(w,si) : {x:-u.y,y:u.x};
-      const out={x:-inward.x*(w.closed?1:-1)*1, y:-inward.y*(w.closed?1:-1)*1};
-      const off=T/2+0.32;
-      const A=mToScreen(a.x+out.x*off,a.y+out.y*off,v), B=mToScreen(b.x+out.x*off,b.y+out.y*off,v);
-      const A0=mToScreen(a.x+out.x*(T/2+0.04),a.y+out.y*(T/2+0.04),v), B0=mToScreen(b.x+out.x*(T/2+0.04),b.y+out.y*(T/2+0.04),v);
-      const A1=mToScreen(a.x+out.x*(off+0.08),a.y+out.y*(off+0.08),v), B1=mToScreen(b.x+out.x*(off+0.08),b.y+out.y*(off+0.08),v);
-      const sel=(selWallIdx>=0&&SC.walls[selWallIdx]===w&&ST.selSeg===si);
-      ctx.strokeStyle=sel?'#fde047':'rgba(125,211,252,.85)'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(A0.x,A0.y); ctx.lineTo(A1.x,A1.y); ctx.moveTo(B0.x,B0.y); ctx.lineTo(B1.x,B1.y); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
-      const ang=Math.atan2(B.y-A.y,B.x-A.x), tk=4;   // traits obliques aux extrémités
-      ctx.beginPath(); for(const P of [A,B]){ ctx.moveTo(P.x-tk,P.y+tk); ctx.lineTo(P.x+tk,P.y-tk); } ctx.stroke();
-      const m={x:(A.x+B.x)/2,y:(A.y+B.y)/2}, txt=len.toFixed(2)+' m';
-      ctx.save(); ctx.translate(m.x,m.y); ctx.rotate(readableAngle(ang));
-      const tw=ctx.measureText(txt).width+10;
-      ctx.fillStyle='#0f1623'; ctx.fillRect(-tw/2,-8,tw,16);
-      ctx.fillStyle=sel?'#fde047':'#bae6fd'; ctx.fillText(txt,0,0.5); ctx.restore();
+    const pts=stWallPts(w), T=stWallThick(w), n=w.pts.length;
+    const isSel=si=>(selWallIdx>=0&&SC.walls[selWallIdx]===w&&ST.selSeg===si);
+    // cotes d'axe, à l'extérieur de la pièce
+    if(!w.closed || mode!=='int'){
+      for(let si=0;si<pts.length-1;si++){
+        const a=pts[si], b=pts[si+1], len=_d(a,b);
+        if(len<0.15 || len*v.sc<46) continue;
+        const u=_unit(b.x-a.x,b.y-a.y);
+        const inward = w.closed ? stInwardNormal(w,si) : {x:-u.y,y:u.x};
+        const k=w.closed?-1:1, out={x:inward.x*k, y:inward.y*k};   // extérieur (pièce fermée) ou côté gauche
+        const P=(pt,d)=>({x:pt.x+out.x*d,y:pt.y+out.y*d});
+        const off=T/2+0.32;
+        stDimLine(ctx,v,P(a,off),P(b,off),[P(a,T/2+0.04),P(a,off+0.08)],[P(b,T/2+0.04),P(b,off+0.08)],len.toFixed(2)+' m','rgba(125,211,252,.85)',isSel(si)&&mode!=='int');
+      }
+    }
+    // cotes utiles (entre parements), à l'intérieur
+    if(w.closed && mode!=='axe'){
+      const ring=stInnerRing(w);
+      for(let si=0;si<n;si++){
+        const P=ring[si], Q=ring[(si+1)%n], len=_d(P,Q);
+        if(len<0.3 || len*v.sc<50) continue;
+        const nrm=stInwardNormal(w,si), e=0.24, mv=(pt,d)=>({x:pt.x+nrm.x*d,y:pt.y+nrm.y*d});
+        stDimLine(ctx,v,mv(P,e),mv(Q,e),[P,mv(P,e+0.06)],[Q,mv(Q,e+0.06)],len.toFixed(2)+' m','rgba(134,239,172,.85)',isSel(si));
+      }
     }
     if(w.closed){
-      const c=stCentroid(w.pts), s=mToScreen(c.x,c.y,v);
-      ctx.fillStyle='rgba(226,232,240,.75)'; ctx.font='bold 12px -apple-system,Segoe UI,sans-serif';
-      ctx.fillText(Math.abs(stSignedArea(w.pts)).toFixed(2)+' m²', s.x, s.y-(SC.sanitaires.length?0:0));
+      const c=stCentroid(w.pts), s=mToScreen(c.x,c.y,v), ax=Math.abs(stSignedArea(w.pts)), ut=stUsefulArea(w);
+      ctx.fillStyle='rgba(226,232,240,.8)'; ctx.font='bold 12px -apple-system,Segoe UI,sans-serif';
+      ctx.fillText((mode==='axe'?ax:ut).toFixed(2)+(mode==='axe'?' m² (axes)':' m² utiles'), s.x, s.y);
+      if(mode==='both'){ ctx.fillStyle='rgba(148,163,184,.85)'; ctx.font='10px ui-monospace,monospace'; ctx.fillText(ax.toFixed(2)+' m² (axes)', s.x, s.y+15); }
       ctx.font='11px ui-monospace,monospace';
     }
   });
@@ -925,7 +967,7 @@ function stDrawPreview(ctx, v){
     ctx.fillStyle='rgba(253,224,71,.10)'; ctx.fillRect(p1.x,p1.y,p2.x-p1.x,p2.y-p1.y);
     ctx.strokeStyle='#fde047'; ctx.lineWidth=1.5; ctx.strokeRect(p1.x,p1.y,p2.x-p1.x,p2.y-p1.y);
     ctx.font='bold 11px ui-monospace,monospace'; ctx.fillStyle='#fde047';
-    ctx.fillText(`${Math.abs(bb.x-a.x).toFixed(2)} × ${Math.abs(bb.y-a.y).toFixed(2)} m`,(p1.x+p2.x)/2,(p1.y+p2.y)/2);
+    ctx.fillText(`${Math.abs(bb.x-a.x).toFixed(2)} × ${Math.abs(bb.y-a.y).toFixed(2)} m${stDimInt()?' (utiles)':' (axes)'}`,(p1.x+p2.x)/2,(p1.y+p2.y)/2);
   }
   if(t==='rect' && ST.typed) showTyped=`Dimensions : ${ST.typed}`;
   // ouverture / objet : fantôme
