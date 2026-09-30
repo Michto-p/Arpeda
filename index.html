@@ -67,6 +67,9 @@
           <button class="tool" id="tPan" onclick="setTool('pan')">
             <span class="tool-i">✋</span><span class="tool-t">Sélect.</span>
           </button>
+          <button class="tool" onclick="openRoomDlg()">
+            <span class="tool-i">📐</span><span class="tool-t">Pièce</span>
+          </button>
           <button class="tool" onclick="undo()">
             <span class="tool-i">↶</span><span class="tool-t">Annuler</span>
           </button>
@@ -320,6 +323,29 @@
       <button class="ahb" id="arPlace" onclick="arPlaceObj()">📍 Tap 1</button>
       <button class="ahb" onclick="arReanchor()">↺</button>
       <button class="ahb" id="bSet" onclick="toggleArSet()">⚙️</button>
+    </div>
+  </div>
+</div>
+
+<!-- CRÉATION RAPIDE DE PIÈCE -->
+<div id="dlgRoom" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:20px">
+  <div style="background:var(--sur);border:1px solid var(--bor);border-radius:14px;padding:18px;max-width:340px;width:100%">
+    <div style="font-weight:800;font-size:.95rem;margin-bottom:12px">📐 Pièce rectangulaire</div>
+    <div class="pf-grid pf">
+      <div class="pf"><div class="pf-l">Largeur (m)</div><input type="number" id="rmW" step="0.05" min="1" max="10" value="3"></div>
+      <div class="pf"><div class="pf-l">Longueur (m)</div><input type="number" id="rmD" step="0.05" min="1" max="10" value="2.4"></div>
+    </div>
+    <div class="pf" style="margin-bottom:10px"><div class="pf-l">Hauteur sous plafond (m)</div><input type="number" id="rmH" step="0.05" min="2" max="3.5" value="2.5"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="tool" style="flex:none;padding:6px 10px" onclick="presetRoom(2,1.8)"><span class="tool-t">2,0×1,8</span></button>
+      <button class="tool" style="flex:none;padding:6px 10px" onclick="presetRoom(2.4,2)"><span class="tool-t">2,4×2,0</span></button>
+      <button class="tool" style="flex:none;padding:6px 10px" onclick="presetRoom(3,2.4)"><span class="tool-t">3,0×2,4</span></button>
+      <button class="tool" style="flex:none;padding:6px 10px" onclick="presetRoom(3.5,2.5)"><span class="tool-t">3,5×2,5</span></button>
+    </div>
+    <div style="font-size:.66rem;color:var(--mid);margin-bottom:12px">Sur une pièce rectangulaire existante, les portes et fenêtres sont conservées.</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeRoomDlg()" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--bor);background:var(--bor2);color:var(--txt2);font-weight:700;font-size:.78rem;cursor:pointer">Annuler</button>
+      <button onclick="applyRoomDlg()" style="flex:1;padding:11px;border-radius:9px;border:none;background:var(--ac);color:#fff;font-weight:700;font-size:.78rem;cursor:pointer">Valider</button>
     </div>
   </div>
 </div>

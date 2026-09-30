@@ -278,3 +278,47 @@ function ptToSeg(px,py, a, b){
 }
 
 function undoOpen(){ SC.openings.pop(); redraw('open'); }
+
+// ── Création rapide : pièce rectangulaire par cotes ──
+function _rectWall(){
+  return SC.walls.length===1 && SC.walls[0].closed && SC.walls[0].pts.length===4 ? SC.walls[0] : null;
+}
+function openRoomDlg(){
+  let w=3, d=2.4;
+  const rw=_rectWall();
+  if(rw){
+    const xs=rw.pts.map(p=>p.x), ys=rw.pts.map(p=>p.y);
+    w=Math.max(...xs)-Math.min(...xs); d=Math.max(...ys)-Math.min(...ys);
+  }
+  document.getElementById('rmW').value=w.toFixed(2);
+  document.getElementById('rmD').value=d.toFixed(2);
+  document.getElementById('rmH').value=SC.roomH.toFixed(2);
+  document.getElementById('dlgRoom').style.display='flex';
+}
+function closeRoomDlg(){ document.getElementById('dlgRoom').style.display='none'; }
+function presetRoom(w,d){
+  document.getElementById('rmW').value=w;
+  document.getElementById('rmD').value=d;
+}
+async function applyRoomDlg(){
+  const w=+document.getElementById('rmW').value, d=+document.getElementById('rmD').value, h=+document.getElementById('rmH').value;
+  if(!(w>=1&&w<=10&&d>=1&&d<=10&&h>=2&&h<=3.5)){ toast('Cotes hors limites (1–10 m, hauteur 2–3,5 m)'); return; }
+  const rw=_rectWall();
+  closeRoomDlg();
+  if(!rw && SC.walls.length && !await askConfirm('Remplacer le tracé actuel par une pièce rectangulaire ?')) return;
+  const pts=[{x:0,y:0},{x:w,y:0},{x:w,y:d},{x:0,y:d}];
+  if(rw){
+    // Conserver le point de départ et l'ordre des sommets
+    const x0=Math.min(...rw.pts.map(p=>p.x)), y0=Math.min(...rw.pts.map(p=>p.y));
+    rw.pts=pts.map(p=>({x:p.x+x0,y:p.y+y0}));
+  } else {
+    SC.walls=[{pts,closed:true,kind:'ext',comp:'mur_brique_classique'}];
+    SC.openings=[];
+  }
+  SC.roomH=h;
+  const rng=document.getElementById('rngH'); if(rng) rng.value=h;
+  const lbl=document.getElementById('lblH'); if(lbl) lbl.textContent=h.toFixed(2)+'m';
+  VIEWS.draw.init=false;
+  initCanvas('draw');
+  refreshElements();
+}

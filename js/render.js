@@ -64,6 +64,13 @@ function drawGrid(ctx, W, H, v){
   for(let y=oy2;y<H;y+=g100){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
 }
 
+// Texte toujours lisible (jamais à l'envers)
+function readableAngle(a){
+  if(a>Math.PI/2) return a-Math.PI;
+  if(a<-Math.PI/2) return a+Math.PI;
+  return a;
+}
+
 function drawWalls(ctx, v){
   if(!SC.walls.length) return;
   for(let wi=0; wi<SC.walls.length; wi++){
@@ -74,14 +81,17 @@ function drawWalls(ctx, v){
     const realThick = comp ? compThickness(comp) : (w.kind==='int' ? 0.10 : 0.20);
     // Épaisseur visuelle proportionnelle à l'épaisseur réelle
     const T = Math.max(4, v.sc * realThick);
-    const p0 = mToScreen(w.pts[0].x, w.pts[0].y, v);
-    ctx.beginPath();
-    ctx.moveTo(p0.x, p0.y);
-    for(let i=1; i<w.pts.length; i++){
-      const p=mToScreen(w.pts[i].x, w.pts[i].y, v);
-      ctx.lineTo(p.x, p.y);
-    }
-    if(w.closed) ctx.closePath();
+    const tracePath = ()=>{
+      const p0 = mToScreen(w.pts[0].x, w.pts[0].y, v);
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      for(let i=1; i<w.pts.length; i++){
+        const p=mToScreen(w.pts[i].x, w.pts[i].y, v);
+        ctx.lineTo(p.x, p.y);
+      }
+      if(w.closed) ctx.closePath();
+    };
+    tracePath();
     if(w.closed){
       // Fond pièce (sol)
       ctx.fillStyle='#1a2b3e';
@@ -106,6 +116,7 @@ function drawWalls(ctx, v){
       }
       ctx.restore();
     }
+    tracePath();   // le carrelage a remplacé le chemin courant
     // Halo si sélectionné
     if(isSel){
       ctx.shadowColor='rgba(96,165,250,.8)';
@@ -149,7 +160,7 @@ function drawWalls(ctx, v){
         const m=mToScreen((a.x+b.x)/2, (a.y+b.y)/2, v);
         ctx.save();
         ctx.translate(m.x, m.y);
-        ctx.rotate(Math.atan2(b.y-a.y, b.x-a.x));
+        ctx.rotate(readableAngle(Math.atan2(b.y-a.y, b.x-a.x)));
         ctx.fillStyle='rgba(20,26,38,.92)';
         const txt = comp.label;
         ctx.font='bold 8px ui-monospace,monospace';
@@ -173,7 +184,7 @@ function drawWalls(ctx, v){
       const m=mToScreen((a.x+b.x)/2, (a.y+b.y)/2, v);
       ctx.save();
       ctx.translate(m.x,m.y);
-      ctx.rotate(Math.atan2(b.y-a.y, b.x-a.x));
+      ctx.rotate(readableAngle(Math.atan2(b.y-a.y, b.x-a.x)));
       ctx.fillStyle='rgba(20,26,38,.92)';
       ctx.fillRect(-22,-15,44,11);
       ctx.fillStyle='#9ab4d4';
